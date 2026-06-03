@@ -5,10 +5,6 @@ import { api } from "../api/api";
 import ProductCard from "../components/ProductCard";
 
 function HomePage() {
-  console.log(
-  "VITE_API_URL:",
-  import.meta.env.VITE_API_URL
-);
   const { data, isLoading } =
     useQuery({
       queryKey: ["products"],
@@ -23,8 +19,6 @@ function HomePage() {
       },
     });
 
-    console.log("data:", data);
-    console.log("isArray:", Array.isArray(data));
 
   if (isLoading) {
     return <div>Loading...</div>;
