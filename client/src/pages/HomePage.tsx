@@ -13,9 +13,14 @@ function HomePage() {
         const response =
           await api.get("/products");
 
+         console.log("API response:", response.data);
+
         return response.data;
       },
     });
+
+    console.log("data:", data);
+    console.log("isArray:", Array.isArray(data));
 
   if (isLoading) {
     return <div>Loading...</div>;
@@ -28,13 +33,14 @@ function HomePage() {
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {data?.map((product: any) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-          />
-        ))}
-      </div>
+  {Array.isArray(data) &&
+    data.map((product: any) => (
+      <ProductCard
+        key={product.id}
+        product={product}
+      />
+    ))}
+    </div>
     </div>
   );
 }
