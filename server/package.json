@@ -1,11 +1,12 @@
 {
-  "scripts": {
-    "dev": "ts-node-dev --respawn src/index.ts",
-    "build": "tsc && cpy \"src/generated/**/*\" \"dist/src/generated\" --parents",
-    "start": "node dist/src/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
-  },
+ "scripts": {
+  "dev": "ts-node-dev --respawn src/index.ts",
+  "prebuild": "prisma generate",
+  "build": "tsc && cpy \"src/generated/**/*\" \"dist/src/generated\" --parents",
+  "start": "node dist/src/index.js",
+  "prisma:generate": "prisma generate",
+  "prisma:migrate": "prisma migrate dev"
+},
   "prisma": {
     "schema": "src/prisma/schema.prisma"
   },
