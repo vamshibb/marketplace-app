@@ -1,8 +1,16 @@
-import { Request, Response, NextFunction } from "express";
+import {
+  Request,
+  Response,
+  NextFunction,
+} from "express";
+
 import jwt from "jsonwebtoken";
 
-interface AuthRequest extends Request {
-  userId?: string;
+export interface AuthRequest
+  extends Request {
+  user?: {
+    id: string;
+  };
 }
 
 export const authMiddleware = (
@@ -19,7 +27,8 @@ export const authMiddleware = (
     });
   }
 
-  const token = authHeader.split(" ")[1];
+  const token =
+    authHeader.split(" ")[1];
 
   try {
     const decoded = jwt.verify(
@@ -29,7 +38,9 @@ export const authMiddleware = (
       userId: string;
     };
 
-    req.userId = decoded.userId;
+    req.user = {
+      id: decoded.userId,
+    };
 
     next();
   } catch (error) {

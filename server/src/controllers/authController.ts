@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 import { prisma } from "../prisma/client";
+import { AuthRequest } from "../middleware/authMiddleware";
 
 export const register = async (
   req: Request,
@@ -53,9 +54,12 @@ export const register = async (
     });
   } catch (error) {
     console.error(error);
+
     return res.status(500).json({
       message: "Server error",
-      error: (error as any)?.message || String(error),
+      error:
+        (error as any)?.message ||
+        String(error),
     });
   }
 };
@@ -111,9 +115,50 @@ export const login = async (
     });
   } catch (error) {
     console.error(error);
+
     return res.status(500).json({
       message: "Server error",
-      error: (error as any)?.message || String(error),
+      error:
+        (error as any)?.message ||
+        String(error),
+    });
+  }
+};
+
+export const me = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const user =
+      await prisma.user.findUnique({
+        where: {
+          id: req.user.id,
+        },
+        select: {
+          id: true,
+          email: true,
+        },
+      });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.json(user);
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Server error",
     });
   }
 };
