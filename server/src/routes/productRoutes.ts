@@ -4,6 +4,8 @@ import {
   createProduct,
   getProducts,
   getProductById,
+  deleteProduct,
+  updateProduct,
 } from "../controllers/productController";
 
 import {
@@ -21,5 +23,17 @@ router.post(
   authMiddleware,
   createProduct
 );
+router.put(
+  "/:id",
+  authMiddleware,
+  updateProduct
+);
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  deleteProduct
+);
+
 
 export default router;
