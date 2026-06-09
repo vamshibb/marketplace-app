@@ -2,43 +2,43 @@ import { Request, Response } from "express";
 
 import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
+import {
+  createProductSchema,
+  updateProductSchema,
+} from "../validators/productValidators";
 
 export const createProduct = async (
   req: AuthRequest,
   res: Response
 ) => {
   try {
-    const {
-      title,
-      description,
-      price,
-      image,
-    } = req.body;
+    const validatedData =
+      createProductSchema.parse(
+        req.body
+      );
 
     const product =
       await prisma.product.create({
         data: {
-          title,
-          description,
-          price: Number(price),
-          image,
+          ...validatedData,
           sellerId: req.user!.id,
         },
       });
 
-    res.status(201).json(product);
+    return res
+      .status(201)
+      .json(product);
   } catch (error) {
-  console.error(
-    "Create Product Error:",
-    error
-  );
+    console.error(
+      "Create Product Error:",
+      error
+    );
 
-  res.status(500).json({
-    message: "Server error",
-  });
-}
+    return res.status(400).json({
+      message: "Validation failed",
+    });
+  }
 };
-
 export const getProducts = async (
   req: Request,
   res: Response
@@ -129,12 +129,17 @@ export const updateProduct = async (
       });
     }
 
+    const validatedData =
+      updateProductSchema.parse(
+        req.body
+      );
+
     const updatedProduct =
       await prisma.product.update({
         where: {
           id: req.params.id,
         },
-        data: req.body,
+        data: validatedData,
       });
 
     res.json(updatedProduct);
