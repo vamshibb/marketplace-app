@@ -2,7 +2,7 @@ import { NextFunction, Request, Response, } from "express";
 
 import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
-import { AppError } from "../errors/appError";
+import { AppError } from "../errors/AppError";
 
 export const createProduct = async (
   req: AuthRequest,

@@ -4,7 +4,7 @@ import {
   NextFunction,
 } from "express";
 
-import { AppError } from "../errors/appError";
+import { AppError } from "../errors/AppError";
 
 export const errorMiddleware = (
   error: Error,
@@ -15,13 +15,13 @@ export const errorMiddleware = (
   console.error(error);
 
   if (error instanceof AppError) {
-    return res.status(
-      error.statusCode
-    ).json({
-      success: false,
-      message: error.message,
-    });
-  }
+  return res.status(
+    error.statusCode
+  ).json({
+    success: false,
+    message: error.message,
+  });
+}
 
   return res.status(500).json({
     success: false,
