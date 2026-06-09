@@ -1,26 +1,29 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response, } from "express";
 
 import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
-import {
-  createProductSchema,
-  updateProductSchema,
-} from "../validators/productValidators";
+import { AppError } from "../errors/appError";
 
 export const createProduct = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
-    const validatedData =
-      createProductSchema.parse(
-        req.body
-      );
+    const {
+      title,
+      description,
+      price,
+      image,
+    } = req.body;
 
     const product =
       await prisma.product.create({
         data: {
-          ...validatedData,
+          title,
+          description,
+          price,
+          image,
           sellerId: req.user!.id,
         },
       });
@@ -29,14 +32,7 @@ export const createProduct = async (
       .status(201)
       .json(product);
   } catch (error) {
-    console.error(
-      "Create Product Error:",
-      error
-    );
-
-    return res.status(400).json({
-      message: "Validation failed",
-    });
+    next(error);
   }
 };
 export const getProducts = async (
@@ -70,7 +66,8 @@ export const getProducts = async (
 
 export const getProductById = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     const product =
@@ -89,22 +86,22 @@ export const getProductById = async (
       });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      throw new AppError(
+        "Product not found",
+        404
+      );
     }
 
     res.json(product);
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-    });
+    next(error);
   }
 };
 
 export const updateProduct = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     const product =
@@ -129,17 +126,24 @@ export const updateProduct = async (
       });
     }
 
-    const validatedData =
-      updateProductSchema.parse(
-        req.body
-      );
+    const {
+      title,
+      description,
+      price,
+      image,
+    } = req.body;
 
     const updatedProduct =
       await prisma.product.update({
         where: {
           id: req.params.id,
         },
-        data: validatedData,
+        data: {
+          title,
+          description,
+          price,
+          image,
+        },
       });
 
     res.json(updatedProduct);
@@ -197,3 +201,7 @@ export const deleteProduct = async (
     });
   }
 };
+
+function next(error: unknown) {
+  throw new Error("Function not implemented.");
+}
