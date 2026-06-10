@@ -5,6 +5,7 @@ import { AuthRequest } from "../middleware/authMiddleware";
 import { AppError } from "../errors/AppError";
 import * as productService
   from "../services/productService";
+import { successResponse } from "../utils/apiResponse";
 
 export const createProduct = async (
   req: AuthRequest,
@@ -29,8 +30,13 @@ export const createProduct = async (
       });
 
     return res
-      .status(201)
-      .json(product);
+  .status(201)
+  .json(
+    successResponse(
+      product,
+      "Product created successfully"
+    )
+  );
   } catch (error) {
     next(error);
   }
@@ -43,7 +49,7 @@ export const getProducts = async (
   try {
     const products =
   await productService.getAllProducts();
-    res.json(products);
+    res.json(successResponse(products));
   } catch (error) {
     next(error);
   }
@@ -66,7 +72,7 @@ export const getProductById = async (
       );
     }
 
-    res.json(product);
+    res.json(successResponse(product));
   } catch (error) {
     next(error);
   }
@@ -112,7 +118,12 @@ export const updateProduct = async (
         req.body
       );
 
-    res.json(updatedProduct);
+    res.json(
+  successResponse(
+    updatedProduct,
+    "Product updated successfully"
+  )
+);
   } catch (error) {
     next(error);
   }
@@ -149,10 +160,12 @@ await productService.deleteProduct(
   req.params.id
 );
 
-res.json({
-  message:
-    "Product deleted successfully",
-});
+res.json(
+  successResponse(
+    null,
+    "Product deleted successfully"
+  )
+);
   } catch (error) {
     next(error);
   }
