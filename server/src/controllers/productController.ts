@@ -54,6 +54,8 @@ export const getProducts = async (
     const limit = Number(
       req.query.limit
     ) || 10;
+    const search =
+      req.query.search?.toString() || "";
 
     const {
       products,
@@ -61,7 +63,8 @@ export const getProducts = async (
     } =
       await productService.getAllProducts(
         page,
-        limit
+        limit,
+        search
       );
 
     res.json({

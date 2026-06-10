@@ -3,14 +3,35 @@ import { prisma } from "../prisma/client";
 
 export const getAllProducts = async (
   page: number,
-  limit: number
+  limit: number,
+  search?: string
 ) => {
   const skip =
     (page - 1) * limit;
 
+  const where = search
+    ? {
+        OR: [
+          {
+            title: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+          {
+            description: {
+              contains: search,
+              mode: "insensitive" as const,
+            },
+          },
+        ],
+      }
+    : {};
+
   const [products, total] =
     await Promise.all([
       prisma.product.findMany({
+        where,
         skip,
         take: limit,
 
@@ -28,7 +49,9 @@ export const getAllProducts = async (
         },
       }),
 
-      prisma.product.count(),
+      prisma.product.count({
+        where,
+      }),
     ]);
 
   return {
