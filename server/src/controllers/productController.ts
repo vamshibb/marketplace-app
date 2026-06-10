@@ -37,7 +37,8 @@ export const createProduct = async (
 };
 export const getProducts = async (
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     const products =
@@ -58,9 +59,7 @@ export const getProducts = async (
 
     res.json(products);
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-    });
+    next(error);
   }
 };
 
@@ -111,19 +110,19 @@ export const updateProduct = async (
         },
       });
 
-    if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
-    }
+    if (!product) throw new AppError(
+      "Product not found",
+      404
+    );
 
     if (
       product.sellerId !==
       req.user?.id
     ) {
-      return res.status(403).json({
-        message: "Not authorized",
-      });
+      throw new AppError(
+        "Not authorized",
+        403
+      );
     }
 
     const {
@@ -148,17 +147,14 @@ export const updateProduct = async (
 
     res.json(updatedProduct);
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Server error",
-    });
+    next(error);
   }
 };
 
 export const deleteProduct = async (
   req: AuthRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ) => {
   try {
     const product =
@@ -169,18 +165,19 @@ export const deleteProduct = async (
       });
 
     if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
+      throw new AppError(
+        "Product not found",
+        404
+      );
     }
 
     if (
-      product.sellerId !==
-      req.user?.id
+      product.sellerId !== req.user?.id
     ) {
-      return res.status(403).json({
-        message: "Not authorized",
-      });
+      throw new AppError(
+        "Not authorized",
+        403
+      );
     }
 
     await prisma.product.delete({
@@ -194,11 +191,7 @@ export const deleteProduct = async (
         "Product deleted successfully",
     });
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Server error",
-    });
+    next(error);
   }
 };
 
