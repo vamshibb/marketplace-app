@@ -3,6 +3,8 @@ import { NextFunction, Request, Response, } from "express";
 import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { AppError } from "../errors/AppError";
+import * as productService
+  from "../services/productService";
 
 export const createProduct = async (
   req: AuthRequest,
@@ -18,14 +20,12 @@ export const createProduct = async (
     } = req.body;
 
     const product =
-      await prisma.product.create({
-        data: {
-          title,
-          description,
-          price,
-          image,
-          sellerId: req.user!.id,
-        },
+      await productService.createProduct({
+        title,
+        description,
+        price,
+        image,
+        sellerId: req.user!.id,
       });
 
     return res
@@ -42,21 +42,7 @@ export const getProducts = async (
 ) => {
   try {
     const products =
-      await prisma.product.findMany({
-        include: {
-          seller: {
-            select: {
-              id: true,
-              email: true,
-            },
-          },
-        },
-
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-
+  await productService.getAllProducts();
     res.json(products);
   } catch (error) {
     next(error);
@@ -70,20 +56,9 @@ export const getProductById = async (
 ) => {
   try {
     const product =
-      await prisma.product.findUnique({
-        where: {
-          id: req.params.id,
-        },
-
-        include: {
-          seller: {
-            select: {
-              email: true,
-            },
-          },
-        },
-      });
-
+  await productService.findProductById(
+    req.params.id
+  );
     if (!product) {
       throw new AppError(
         "Product not found",
@@ -104,16 +79,15 @@ export const updateProduct = async (
 ) => {
   try {
     const product =
-      await prisma.product.findUnique({
-        where: {
-          id: req.params.id,
-        },
-      });
+      await productService.findProductById(
+        req.params.id
+      );
 
     if (!product) throw new AppError(
       "Product not found",
       404
     );
+    
 
     if (
       product.sellerId !==
@@ -133,17 +107,10 @@ export const updateProduct = async (
     } = req.body;
 
     const updatedProduct =
-      await prisma.product.update({
-        where: {
-          id: req.params.id,
-        },
-        data: {
-          title,
-          description,
-          price,
-          image,
-        },
-      });
+      await productService.updateProduct(
+        req.params.id,
+        req.body
+      );
 
     res.json(updatedProduct);
   } catch (error) {
@@ -158,38 +125,34 @@ export const deleteProduct = async (
 ) => {
   try {
     const product =
-      await prisma.product.findUnique({
-        where: {
-          id: req.params.id,
-        },
-      });
+  await productService.findProductById(
+    req.params.id
+  );
 
-    if (!product) {
-      throw new AppError(
-        "Product not found",
-        404
-      );
-    }
+if (!product) {
+  throw new AppError(
+    "Product not found",
+    404
+  );
+}
 
-    if (
-      product.sellerId !== req.user?.id
-    ) {
-      throw new AppError(
-        "Not authorized",
-        403
-      );
-    }
+if (
+  product.sellerId !== req.user?.id
+) {
+  throw new AppError(
+    "Not authorized",
+    403
+  );
+}
 
-    await prisma.product.delete({
-      where: {
-        id: req.params.id,
-      },
-    });
+await productService.deleteProduct(
+  req.params.id
+);
 
-    res.json({
-      message:
-        "Product deleted successfully",
-    });
+res.json({
+  message:
+    "Product deleted successfully",
+});
   } catch (error) {
     next(error);
   }
