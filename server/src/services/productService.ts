@@ -1,20 +1,40 @@
 import { prisma } from "../prisma/client";
 
 
-export const getAllProducts = () => {
-  return prisma.product.findMany({
-    include: {
-      seller: {
-        select: {
-          id: true,
-          email: true,
+export const getAllProducts = async (
+  page: number,
+  limit: number
+) => {
+  const skip =
+    (page - 1) * limit;
+
+  const [products, total] =
+    await Promise.all([
+      prisma.product.findMany({
+        skip,
+        take: limit,
+
+        include: {
+          seller: {
+            select: {
+              id: true,
+              email: true,
+            },
+          },
         },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+
+      prisma.product.count(),
+    ]);
+
+  return {
+    products,
+    total,
+  };
 };
 
 export const findProductById = (
