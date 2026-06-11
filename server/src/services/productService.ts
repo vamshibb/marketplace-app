@@ -46,37 +46,37 @@ export const getAllProducts = async (
     }
   }
 
-  const [products, total] =
   const orderBy =
-  sort === "price_asc"
-    ? { price: "asc" as const }
-    : sort === "price_desc"
-    ? { price: "desc" as const }
-    : sort === "oldest"
-    ? { createdAt: "asc" as const }
-    : { createdAt: "desc" as const };
-    await Promise.all([
-      prisma.product.findMany({
-        where,
-        skip,
-        take: limit,
+    sort === "price_asc"
+      ? { price: "asc" as const }
+      : sort === "price_desc"
+      ? { price: "desc" as const }
+      : sort === "oldest"
+      ? { createdAt: "asc" as const }
+      : { createdAt: "desc" as const };
 
-        include: {
-          seller: {
-            select: {
-              id: true,
-              email: true,
-            },
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      skip,
+      take: limit,
+
+      include: {
+        seller: {
+          select: {
+            id: true,
+            email: true,
           },
         },
+      },
 
-        orderBy,
-      }),
+      orderBy,
+    }),
 
-      prisma.product.count({
-        where,
-      }),
-    ]);
+    prisma.product.count({
+      where,
+    }),
+  ]);
 
   return {
     products,
