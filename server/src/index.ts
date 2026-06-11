@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import categoryRoutes from "./routes/categoryRoutes";
 
 import authRoutes from "./routes/authRoutes";
 import {
@@ -34,6 +35,7 @@ app.get("/", (_, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);
 app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;

@@ -18,6 +18,7 @@ export const createProduct = async (
       description,
       price,
       image,
+      categoryId,
     } = req.body;
 
     const product =
@@ -26,6 +27,7 @@ export const createProduct = async (
         description,
         price,
         image,
+        categoryId,
         sellerId: req.user!.id,
       });
 
@@ -65,6 +67,10 @@ export const getProducts = async (
       req.query.maxPrice
         ? Number(req.query.maxPrice)
         : undefined;
+    const sort =
+      req.query.sort?.toString();
+    const category =
+      req.query.category?.toString();  
 
     const {
       products,
@@ -75,7 +81,9 @@ export const getProducts = async (
         limit,
         search,
         minPrice,
-        maxPrice
+        maxPrice,
+        sort,
+        category
       );
 
     res.json({

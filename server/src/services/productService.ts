@@ -7,7 +7,8 @@ export const getAllProducts = async (
   search?: string,
   minPrice?: number,
   maxPrice?: number,
-  sort?: string
+  sort?: string,
+  category?: string
 ) => {
   const skip =
     (page - 1) * limit;
@@ -45,7 +46,11 @@ export const getAllProducts = async (
       where.price.lte = maxPrice;
     }
   }
-
+  if (category) {
+    where.category = {
+      slug: category,
+    };
+  }
   const orderBy =
     sort === "price_asc"
       ? { price: "asc" as const }
@@ -66,6 +71,14 @@ export const getAllProducts = async (
           select: {
             id: true,
             email: true,
+          },
+        },
+
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
           },
         },
       },
@@ -95,6 +108,14 @@ export const findProductById = (
           email: true,
         },
       },
+
+      category: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+        },
+      },
     },
   });
 };
@@ -105,6 +126,7 @@ export const createProduct = (
     description: string;
     price: number;
     image?: string;
+    categoryId?: string;
     sellerId: string;
   }
 ) => {
