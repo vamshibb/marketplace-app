@@ -68,7 +68,7 @@ export const getProducts = async (
 
     const {
       products,
-      total,
+      total, 
     } =
       await productService.getAllProducts(
         page,

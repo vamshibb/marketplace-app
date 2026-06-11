@@ -6,7 +6,8 @@ export const getAllProducts = async (
   limit: number,
   search?: string,
   minPrice?: number,
-  maxPrice?: number
+  maxPrice?: number,
+  sort?: string
 ) => {
   const skip =
     (page - 1) * limit;
@@ -46,6 +47,14 @@ export const getAllProducts = async (
   }
 
   const [products, total] =
+  const orderBy =
+  sort === "price_asc"
+    ? { price: "asc" as const }
+    : sort === "price_desc"
+    ? { price: "desc" as const }
+    : sort === "oldest"
+    ? { createdAt: "asc" as const }
+    : { createdAt: "desc" as const };
     await Promise.all([
       prisma.product.findMany({
         where,
@@ -61,9 +70,7 @@ export const getAllProducts = async (
           },
         },
 
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy,
       }),
 
       prisma.product.count({
