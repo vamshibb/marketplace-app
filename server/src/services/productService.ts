@@ -4,29 +4,46 @@ import { prisma } from "../prisma/client";
 export const getAllProducts = async (
   page: number,
   limit: number,
-  search?: string
+  search?: string,
+  minPrice?: number,
+  maxPrice?: number
 ) => {
   const skip =
     (page - 1) * limit;
 
-  const where = search
-    ? {
-        OR: [
-          {
-            title: {
-              contains: search,
-              mode: "insensitive" as const,
-            },
-          },
-          {
-            description: {
-              contains: search,
-              mode: "insensitive" as const,
-            },
-          },
-        ],
-      }
-    : {};
+  const where: any = {};
+
+  if (search) {
+    where.OR = [
+      {
+        title: {
+          contains: search,
+          mode: "insensitive",
+        },
+      },
+      {
+        description: {
+          contains: search,
+          mode: "insensitive",
+        },
+      },
+    ];
+  }
+
+  if (
+    minPrice !== undefined ||
+    maxPrice !== undefined
+  ) {
+    where.price = {};
+
+    if (minPrice !== undefined) {
+      where.price.gte = minPrice;
+    }
+
+    if (maxPrice !== undefined) {
+      where.price.lte = maxPrice;
+    }
+  }
 
   const [products, total] =
     await Promise.all([

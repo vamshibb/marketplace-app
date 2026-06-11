@@ -56,6 +56,15 @@ export const getProducts = async (
     ) || 10;
     const search =
       req.query.search?.toString() || "";
+    const minPrice =
+      req.query.minPrice
+        ? Number(req.query.minPrice)
+        : undefined;
+
+    const maxPrice =
+      req.query.maxPrice
+        ? Number(req.query.maxPrice)
+        : undefined;
 
     const {
       products,
@@ -64,7 +73,9 @@ export const getProducts = async (
       await productService.getAllProducts(
         page,
         limit,
-        search
+        search,
+        minPrice,
+        maxPrice
       );
 
     res.json({
