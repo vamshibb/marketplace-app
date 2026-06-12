@@ -8,11 +8,12 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
+  id        String      @id @default(cuid())
+  email     String      @unique
   password  String
   products  Product[]
-  createdAt DateTime  @default(now())
+  favorites Favorite[]
+  createdAt DateTime    @default(now())
 }
  model Category {
   id        String    @id @default(cuid())
@@ -21,7 +22,19 @@ model User {
   products  Product[]
   createdAt DateTime  @default(now())
 }
+model Favorite {
+  id        String   @id @default(cuid())
 
+  userId    String
+  productId String
+
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
 model Product {
   id          String   @id @default(cuid())
   title       String
@@ -35,4 +48,6 @@ model Product {
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
+
+  favorites Favorite[]
 }

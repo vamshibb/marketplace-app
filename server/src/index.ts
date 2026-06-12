@@ -9,6 +9,8 @@ import {
 } from "./middleware/authMiddleware";
 import productRoutes from "./routes/productRoutes";
 import { errorMiddleware } from "./middleware/errorMiddleware";
+import favoriteRoutes
+  from "./routes/favoriteRoutes";
 
 dotenv.config();
 
@@ -36,6 +38,7 @@ app.get("/", (_, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/favorites", favoriteRoutes);
 app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;
