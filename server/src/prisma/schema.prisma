@@ -13,6 +13,7 @@ model User {
   password  String
   products  Product[]
   favorites Favorite[]
+  reviews Review[]
   createdAt DateTime    @default(now())
 }
  model Category {
@@ -24,6 +25,22 @@ model User {
 }
 model Favorite {
   id        String   @id @default(cuid())
+
+  userId    String
+  productId String
+
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+model Review {
+  id        String   @id @default(cuid())
+
+  rating    Int
+  comment   String?
 
   userId    String
   productId String
@@ -50,4 +67,5 @@ model Product {
   category   Category? @relation(fields: [categoryId], references: [id])
 
   favorites Favorite[]
+  reviews Review[]
 }

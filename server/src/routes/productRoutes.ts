@@ -18,11 +18,21 @@ import {
   createProductSchema,
   updateProductSchema,
 } from "../validators/productValidators";
+import { createReview, getProductReviews } from "../controllers/reviewController";
 
 const router = Router();
 
 router.get("/", getProducts);
+router.get(
+  "/:productId/reviews",
+  getProductReviews
+);
 
+router.post(
+  "/:productId/reviews",
+  authMiddleware,
+  createReview
+);
 router.get("/:id", getProductById);
 
 router.post(
