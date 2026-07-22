@@ -4,6 +4,9 @@ import jwt from "jsonwebtoken";
 
 import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
+import {
+  successResponse,
+} from "../utils/apiResponse";
 
 export const register = async (
   req: Request,
@@ -45,13 +48,18 @@ export const register = async (
       }
     );
 
-    return res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
-    });
+    return res.status(201).json(
+      successResponse(
+        {
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+          },
+        },
+        "Registration successful"
+      )
+    );
   } catch (error) {
     console.error(error);
 
@@ -106,13 +114,18 @@ export const login = async (
       }
     );
 
-    return res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
-    });
+    return res.json(
+      successResponse(
+        {
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+          },
+        },
+        "Login successful"
+      )
+    );
   } catch (error) {
     console.error(error);
 
@@ -153,7 +166,12 @@ export const me = async (
       });
     }
 
-    return res.json(user);
+    return res.json(
+      successResponse(
+        user,
+        "User retrieved successfully"
+      )
+    );
   } catch (error) {
     console.error(error);
 

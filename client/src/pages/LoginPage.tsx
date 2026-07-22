@@ -1,5 +1,7 @@
 import { useForm } from "react-hook-form";
 import { api } from "../api/api";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 import { useAuthStore } from "../store/authStore";
 
@@ -19,6 +21,8 @@ function LoginPage() {
       (state) => state.setAuth
     );
 
+  const navigate = useNavigate();
+
   const onSubmit = async (
     data: FormData
   ) => {
@@ -30,13 +34,15 @@ function LoginPage() {
         );
 
       setAuth(
-        response.data.user,
-        response.data.token
+        response.data.data.user,
+        response.data.data.token
       );
 
-      console.log("Logged in");
+      toast.success("Login successful");
+
+      navigate("/dashboard");
     } catch (error) {
-      console.log(error);
+      toast.error("Invalid email or password");
     }
   };
 
