@@ -1,16 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-
-import { getProducts } from "../api/productApi";
+import ProductCard from "../components/ProductCard";
+import { useProducts } from "../hooks/useProducts";
 
 function DashboardPage() {
   const {
     data,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
-  });
+  } = useProducts();
 
   if (isLoading) {
     return <h2>Loading...</h2>;
@@ -18,6 +14,10 @@ function DashboardPage() {
 
   if (isError) {
     return <h2>Something went wrong.</h2>;
+  }
+
+  if (!data) {
+    return <h2>No data available.</h2>;
   }
 
   console.log("API response:", data);
@@ -28,22 +28,14 @@ function DashboardPage() {
         Marketplace
       </h1>
 
-      {data.data.map((product: any) => (
-        <div
-          key={product.id}
-          className="border rounded p-4 mb-4"
-        >
-          <h2 className="text-2xl font-semibold">
-            {product.title}
-          </h2>
-
-          <p>{product.description}</p>
-
-          <p className="font-bold">
-            ${product.price}
-          </p>
-        </div>
-      ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {data.data.map((product: any) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+          />
+        ))}
+      </div>
     </div>
   );
 }

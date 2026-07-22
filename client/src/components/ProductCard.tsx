@@ -38,7 +38,7 @@ function ProductCard({
           </span>
 
           <span className="text-sm text-zinc-500">
-            {product.seller.email}
+            {product.seller?.email ?? "Unknown Seller"}
           </span>
         </div>
       </div>
