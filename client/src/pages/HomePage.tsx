@@ -1,23 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useListings } from "../features/listings/hooks/useListings";
+import ListingCard from "../features/listings/components/ListingCard";
 
-import { api } from "../api/api";
-
-import ProductCard from "../components/ProductCard";
 
 function HomePage() {
-  const { data, isLoading } =
-    useQuery({
-      queryKey: ["products"],
-
-      queryFn: async () => {
-        const response =
-          await api.get("/products");
-
-         console.log("API response:", response.data);
-
-        return response.data;
-      },
-    });
+  const { data, isLoading } = useListings();
 
 
   if (isLoading) {
@@ -32,12 +18,16 @@ function HomePage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
   {Array.isArray(data) &&
-    data.map((product: any) => (
-      <ProductCard
-        key={product.id}
-        product={product}
-      />
-    ))}
+    data.map((listing: any) => {
+      const listingProps = { listing } as any;
+
+      return (
+        <ListingCard
+          key={listing.id}
+          {...listingProps}
+        />
+      );
+    })}
     </div>
     </div>
   );

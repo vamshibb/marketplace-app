@@ -1,30 +1,26 @@
 import { useParams } from "react-router-dom";
-
 import { useQuery } from "@tanstack/react-query";
+import { getListing } from "../api/listingApi";
 
-import { api } from "../api/api";
-
-function ProductPage() {
+function ListingPage() {
   const { id } = useParams();
 
-  const { data, isLoading } =
-    useQuery({
-      queryKey: ["product", id],
+  const { data, isLoading, isError } = useQuery({
+  queryKey: ["listing", id],
+  queryFn: () => getListing(id!),
+});
 
-      queryFn: async () => {
-        const response =
-          await api.get(
-            `/products/${id}`
-          );
+if (isLoading) {
+  return <div>Loading...</div>;
+}
 
-        return response.data;
-      },
-    });
+if (isError) {
+  return <div>Something went wrong.</div>;
+}
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
+if (!data) {
+  return <div>Listing not found.</div>;
+}
   return (
     <div className="grid md:grid-cols-2 gap-10">
       <img
@@ -57,4 +53,4 @@ function ProductPage() {
   );
 }
 
-export default ProductPage;
+export default ListingPage;

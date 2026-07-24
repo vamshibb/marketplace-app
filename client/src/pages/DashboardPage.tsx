@@ -1,12 +1,12 @@
-import ProductCard from "../components/ProductCard";
-import { useProducts } from "../hooks/useProducts";
+import ListingCard from "../features/listings/components/ListingCard";
+import { useListings } from "../features/listings/hooks/useListings";
 
 function DashboardPage() {
   const {
     data,
     isLoading,
     isError,
-  } = useProducts();
+  } = useListings();
 
   if (isLoading) {
     return <h2>Loading...</h2>;
@@ -29,10 +29,10 @@ function DashboardPage() {
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {data.data.map((product: any) => (
-          <ProductCard
-            key={product.id}
-            product={product}
+        {data.map((listing) => (
+          <ListingCard
+            key={listing.id}
+            listing={listing}
           />
         ))}
       </div>

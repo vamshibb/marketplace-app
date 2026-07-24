@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import { api } from "../api/api";
+import api from "../api/api";
 
 type FormData = {
   email: string;

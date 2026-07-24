@@ -8,7 +8,7 @@ import RegisterPage from "../pages/RegisterPage";
 import DashboardPage from "../pages/DashboardPage";
 
 import ProtectedRoute from "./ProtectedRoute";
-import ProductPage from "../pages/ProductPage";
+import ListingPage from "../features/listings/pages/ListingPage";
 
 export const router =
   createBrowserRouter([
@@ -29,8 +29,8 @@ export const router =
           element: <RegisterPage />,
         },
         {
-          path: "products/:id",
-          element: <ProductPage />,
+          path: "listings/:id",
+          element: <ListingPage />,
         },
         {
           element: <ProtectedRoute />,
