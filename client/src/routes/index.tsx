@@ -9,6 +9,7 @@ import DashboardPage from "../pages/DashboardPage";
 
 import ProtectedRoute from "./ProtectedRoute";
 import ListingPage from "../features/listings/pages/ListingPage";
+import CreateListingPage from "../features/listings/pages/CreateListingPage";
 
 export const router =
   createBrowserRouter([
@@ -40,6 +41,10 @@ export const router =
               element: (
                 <DashboardPage />
               ),
+            },
+            {
+              path: "listings/new",
+              element: <CreateListingPage />,
             },
           ],
         },

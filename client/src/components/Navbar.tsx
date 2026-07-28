@@ -15,7 +15,7 @@ function Navbar() {
           to="/"
           className="text-2xl font-bold"
         >
-          MarketPlace
+          RentalPlace
         </Link>
 
         <nav className="flex items-center gap-6">
@@ -25,13 +25,22 @@ function Navbar() {
 
           {token ? (
             <>
+              <Link to="/">
+                Home
+              </Link>
+
               <Link to="/dashboard">
                 Dashboard
               </Link>
 
-              <button
-                onClick={logout}
+              <Link
+                to="/listings/new"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition"
               >
+                + List an Item
+              </Link>
+
+              <button onClick={logout}>
                 Logout
               </button>
             </>
