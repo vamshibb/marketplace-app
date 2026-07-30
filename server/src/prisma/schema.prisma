@@ -8,90 +8,56 @@ datasource db {
 }
 
 model User {
-  id       String @id @default(cuid())
-  email    String @unique
-  password String
-
-  products  Product[]
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   favorites Favorite[]
+  products  Product[]
   reviews   Review[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
-model Category {
-  id          String  @id @default(cuid())
-  name        String
-  slug        String  @unique
-  description String?
-  icon        String?
 
-  parentId String?
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryHierarchy")
-
-  isLeaf    Boolean @default(true)
-  isActive  Boolean @default(true)
-  sortOrder Int     @default(0)
-
-  products Product[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([parentId, name])
-}
 
 model Product {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   title       String
   description String
   price       Float
   image       String?
-
-  sellerId String
-  seller   User   @relation(fields: [sellerId], references: [id])
-
-  categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id])
-
-  favorites Favorite[]
-  reviews   Review[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  sellerId    String
+  categoryId  String?
+  updatedAt   DateTime   @updatedAt
+  favorites   Favorite[]
+  category    Category?  @relation(fields: [categoryId], references: [id])
+  seller      User       @relation(fields: [sellerId], references: [id])
+  reviews     Review[]
 }
 
 model Favorite {
-  id String @id @default(cuid())
-
+  id        String   @id @default(cuid())
   userId    String
   productId String
-
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, productId])
 }
 
 model Review {
-  id String @id @default(cuid())
-
-  rating  Int
-  comment String?
-
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String?
   userId    String
   productId String
-
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, productId])
 }

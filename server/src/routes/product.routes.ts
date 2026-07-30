@@ -6,7 +6,7 @@ import {
   getProductById,
   deleteProduct,
   updateProduct,
-} from "../controllers/productController";
+} from "../controllers/product.controller";
 
 import {
   authMiddleware,
@@ -18,7 +18,7 @@ import {
   createProductSchema,
   updateProductSchema,
 } from "../validators/productValidators";
-import { createReview, getProductReviews } from "../controllers/reviewController";
+import { createReview, getProductReviews } from "../controllers/review.controller";
 
 const router = Router();
 

@@ -1,22 +1,25 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import categoryRoutes from "./routes/categoryRoutes";
+import categoryRoutes from "./routes/category.routes";
 
-import authRoutes from "./routes/authRoutes";
+import authRoutes from "./routes/auth.routes";
 import {
   authMiddleware,
 } from "./middleware/authMiddleware";
-import productRoutes from "./routes/productRoutes";
+import productRoutes from "./routes/product.routes";
 import { errorMiddleware } from "./middleware/errorMiddleware";
 import favoriteRoutes
-  from "./routes/favoriteRoutes";
-  import reviewRoutes
-  from "./routes/reviewRoutes";
+  from "./routes/favorite.routes";
+import reviewRoutes
+  from "./routes/review.routes";
 
 dotenv.config();
 
 const app = express();
+
+app.use(cors());
+app.use(express.json());
 
 app.get(
   "/api/protected",
@@ -28,8 +31,7 @@ app.get(
   }
 );
 
-app.use(cors());
-app.use(express.json());
+
 
 app.get("/", (_, res) => {
   res.json({

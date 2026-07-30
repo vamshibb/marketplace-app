@@ -7,7 +7,7 @@ import { AuthRequest }
   from "../middleware/authMiddleware";
 
 import * as reviewService
-  from "../services/reviewService";
+  from "../services/review.service";
 
 import {
   createReviewSchema,
@@ -19,7 +19,7 @@ import { successResponse }
 
 import { AppError }
   from "../errors/AppError";
-import * as productService from "../services/productService";
+import * as productService from "../services/product.service";
 
 export const createReview = async (
   req: AuthRequest,

@@ -4,7 +4,7 @@ import {
   addFavorite,
   removeFavorite,
   getFavorites,
-} from "../controllers/favoriteController";
+} from "../controllers/favorite.controller";
 
 import { authMiddleware }
   from "../middleware/authMiddleware";

@@ -4,7 +4,7 @@ import {
   register,
   login,
   me,
-} from "../controllers/authController";
+} from "../controllers/auth.controller";
 
 import { authMiddleware } from "../middleware/authMiddleware";
 

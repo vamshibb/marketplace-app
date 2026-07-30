@@ -4,7 +4,7 @@ import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { AppError } from "../errors/AppError";
 import * as productService
-  from "../services/productService";
+  from "../services/product.service";
 import { successResponse } from "../utils/apiResponse";
 
 export const createProduct = async (
@@ -32,13 +32,13 @@ export const createProduct = async (
       });
 
     return res
-  .status(201)
-  .json(
-    successResponse(
-      product,
-      "Product created successfully"
-    )
-  );
+      .status(201)
+      .json(
+        successResponse(
+          product,
+          "Product created successfully"
+        )
+      );
   } catch (error) {
     next(error);
   }
@@ -70,11 +70,11 @@ export const getProducts = async (
     const sort =
       req.query.sort?.toString();
     const category =
-      req.query.category?.toString();  
+      req.query.category?.toString();
 
     const {
       products,
-      total, 
+      total,
     } =
       await productService.getAllProducts(
         page,
@@ -113,9 +113,9 @@ export const getProductById = async (
 ) => {
   try {
     const product =
-  await productService.findProductById(
-    req.params.id
-  );
+      await productService.findProductById(
+        req.params.id
+      );
     if (!product) {
       throw new AppError(
         "Product not found",
@@ -144,7 +144,7 @@ export const updateProduct = async (
       "Product not found",
       404
     );
-    
+
 
     if (
       product.sellerId !==
@@ -170,11 +170,11 @@ export const updateProduct = async (
       );
 
     res.json(
-  successResponse(
-    updatedProduct,
-    "Product updated successfully"
-  )
-);
+      successResponse(
+        updatedProduct,
+        "Product updated successfully"
+      )
+    );
   } catch (error) {
     next(error);
   }
@@ -187,36 +187,36 @@ export const deleteProduct = async (
 ) => {
   try {
     const product =
-  await productService.findProductById(
-    req.params.id
-  );
+      await productService.findProductById(
+        req.params.id
+      );
 
-if (!product) {
-  throw new AppError(
-    "Product not found",
-    404
-  );
-}
+    if (!product) {
+      throw new AppError(
+        "Product not found",
+        404
+      );
+    }
 
-if (
-  product.sellerId !== req.user?.id
-) {
-  throw new AppError(
-    "Not authorized",
-    403
-  );
-}
+    if (
+      product.sellerId !== req.user?.id
+    ) {
+      throw new AppError(
+        "Not authorized",
+        403
+      );
+    }
 
-await productService.deleteProduct(
-  req.params.id
-);
+    await productService.deleteProduct(
+      req.params.id
+    );
 
-res.json(
-  successResponse(
-    null,
-    "Product deleted successfully"
-  )
-);
+    res.json(
+      successResponse(
+        null,
+        "Product deleted successfully"
+      )
+    );
   } catch (error) {
     next(error);
   }

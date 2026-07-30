@@ -7,7 +7,7 @@ import { AuthRequest }
   from "../middleware/authMiddleware";
 
 import * as favoriteService
-  from "../services/favoriteService";
+  from "../services/favorite.service";
 
 import { successResponse }
   from "../utils/apiResponse";
@@ -32,17 +32,17 @@ export const addFavorite = async (
       )
     );
   } catch (error: any) {
-  if (error.code === "P2002") {
-    return next(
-      new AppError(
-        "Product already in favorites",
-        409
-      )
-    );
-  }
+    if (error.code === "P2002") {
+      return next(
+        new AppError(
+          "Product already in favorites",
+          409
+        )
+      );
+    }
 
-  next(error);
-}
+    next(error);
+  }
 };
 
 export const removeFavorite =
