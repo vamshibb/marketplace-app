@@ -18,7 +18,28 @@ model User {
   reviews   Review[]
 }
 
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  icon        String?
 
+  parentId    String?
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+
+  isLeaf      Boolean    @default(true)
+  isActive    Boolean    @default(true)
+  sortOrder   Int        @default(0)
+
+  products    Product[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([parentId, name])
+}
 
 model Product {
   id          String     @id @default(cuid())
