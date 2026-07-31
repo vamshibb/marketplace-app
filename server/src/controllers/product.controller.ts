@@ -1,6 +1,4 @@
 import { NextFunction, Request, Response, } from "express";
-
-import { prisma } from "../prisma/client";
 import { AuthRequest } from "../middleware/authMiddleware";
 import { AppError } from "../errors/AppError";
 import * as productService
@@ -156,13 +154,6 @@ export const updateProduct = async (
       );
     }
 
-    const {
-      title,
-      description,
-      price,
-      image,
-    } = req.body;
-
     const updatedProduct =
       await productService.updateProduct(
         req.params.id,
@@ -222,6 +213,4 @@ export const deleteProduct = async (
   }
 };
 
-function next(error: unknown) {
-  throw new Error("Function not implemented.");
-}
+
