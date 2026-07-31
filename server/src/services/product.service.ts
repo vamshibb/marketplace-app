@@ -1,5 +1,5 @@
-import { prisma } from "../prisma/client";
-
+import { Prisma } from "../generated/prisma";
+import * as productRepository from "../repositories/product.repository";
 
 export const getAllProducts = async (
   page: number,
@@ -10,10 +10,9 @@ export const getAllProducts = async (
   sort?: string,
   category?: string
 ) => {
-  const skip =
-    (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
-  const where: any = {};
+  const where: Prisma.ProductWhereInput = {};
 
   if (search) {
     where.OR = [
@@ -46,49 +45,30 @@ export const getAllProducts = async (
       where.price.lte = maxPrice;
     }
   }
+
   if (category) {
     where.category = {
       slug: category,
     };
   }
-  const orderBy =
+
+  const orderBy: Prisma.ProductOrderByWithRelationInput =
     sort === "price_asc"
-      ? { price: "asc" as const }
+      ? { price: "asc" }
       : sort === "price_desc"
-      ? { price: "desc" as const }
+      ? { price: "desc" }
       : sort === "oldest"
-      ? { createdAt: "asc" as const }
-      : { createdAt: "desc" as const };
+      ? { createdAt: "asc" }
+      : { createdAt: "desc" };
 
   const [products, total] = await Promise.all([
-    prisma.product.findMany({
+    productRepository.findProducts({
       where,
+      orderBy,
       skip,
       take: limit,
-
-      include: {
-        seller: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
-
-        category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-      },
-
-      orderBy,
     }),
-
-    prisma.product.count({
-      where,
-    }),
+    productRepository.countProducts(where),
   ]);
 
   return {
@@ -97,58 +77,23 @@ export const getAllProducts = async (
   };
 };
 
-export const findProductById = (
-  id: string
-) => {
-  return prisma.product.findUnique({
-    where: { id },
-    include: {
-      seller: {
-        select: {
-          email: true,
-        },
-      },
-
-      category: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-        },
-      },
-    },
-  });
+export const findProductById = (id: string) => {
+  return productRepository.findProductById(id);
 };
 
 export const createProduct = (
-  data: {
-    title: string;
-    description: string;
-    price: number;
-    image?: string;
-    categoryId?: string;
-    sellerId: string;
-  }
+  data: Prisma.ProductUncheckedCreateInput
 ) => {
-  return prisma.product.create({
-    data,
-  });
+  return productRepository.createProduct(data);
 };
 
 export const updateProduct = (
   id: string,
-  data: any
+  data: Prisma.ProductUncheckedUpdateInput
 ) => {
-  return prisma.product.update({
-    where: { id },
-    data,
-  });
+  return productRepository.updateProduct(id, data);
 };
 
-export const deleteProduct = (
-  id: string
-) => {
-  return prisma.product.delete({
-    where: { id },
-  });
+export const deleteProduct = (id: string) => {
+  return productRepository.deleteProduct(id);
 };
