@@ -77,8 +77,34 @@ export const getAllProducts = async (
   };
 };
 
-export const findProductById = (id: string) => {
-  return productRepository.findProductById(id);
+export const findProductById = async (
+  id: string
+) => {
+  const product =
+    await productRepository.findProductById(id);
+
+  if (!product) {
+    return null;
+  }
+
+  const reviewCount =
+    product.reviews.length;
+
+  const averageRating =
+    reviewCount === 0
+      ? 0
+      : product.reviews.reduce(
+          (sum, review) => sum + review.rating,
+          0
+        ) / reviewCount;
+
+  return {
+    ...product,
+    reviewCount,
+    averageRating: Number(
+      averageRating.toFixed(1)
+    ),
+  };
 };
 
 export const createProduct = (

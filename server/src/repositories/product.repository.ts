@@ -44,14 +44,30 @@ export const findProductById = (id: string) => {
     include: {
       seller: {
         select: {
+          id: true,
           email: true,
         },
       },
+
       category: {
         select: {
           id: true,
           name: true,
           slug: true,
+        },
+      },
+
+      reviews: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
         },
       },
     },
