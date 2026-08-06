@@ -5,6 +5,11 @@ const router = Router();
 
 router.get("/", categoryController.getAllCategories);
 
+router.get(
+  "/tree",
+  categoryController.getCategoryTree
+);
+
 router.get("/slug/:slug", categoryController.getCategoryBySlug);
 
 router.get("/:id", categoryController.getCategoryById);

@@ -66,3 +66,20 @@ export const getCategoryById = async (
         next(error);
     }
 };
+
+export const getCategoryTree = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const categoryTree =
+      await categoryService.getCategoryTree();
+
+    res.json(
+      successResponse(categoryTree)
+    );
+  } catch (error) {
+    next(error);
+  }
+};

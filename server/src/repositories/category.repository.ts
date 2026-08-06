@@ -45,3 +45,19 @@ export const deleteCategory = (id: string) => {
         where: { id },
     });
 };
+
+export const findAllCategoriesForTree = () => {
+  return prisma.category.findMany({
+    where: {
+      isActive: true,
+    },
+    orderBy: [
+      {
+        sortOrder: "asc",
+      },
+      {
+        name: "asc",
+      },
+    ],
+  });
+};
