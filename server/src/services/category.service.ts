@@ -48,6 +48,12 @@ export const deleteCategory = (id: string) => {
   return categoryRepository.deleteCategory(id);
 };
 
+export const categoryExists = (
+  id: string
+) => {
+  return categoryRepository.categoryExists(id);
+};
+
 export const getCategoryTree = async () => {
   const categories =
     await categoryRepository.findAllCategoriesForTree();

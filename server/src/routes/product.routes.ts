@@ -19,7 +19,7 @@ import {
   updateProductSchema,
 } from "../validators/productValidators";
 import { createReview, getProductReviews } from "../controllers/review.controller";
-
+import { upload } from "../middleware/upload.middleware";
 const router = Router();
 
 router.get("/", getProducts);
@@ -38,6 +38,7 @@ router.get("/:id", getProductById);
 router.post(
   "/",
   authMiddleware,
+  upload.single("image"),
   validate(createProductSchema),
   createProduct
 );

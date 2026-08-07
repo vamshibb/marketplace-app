@@ -61,3 +61,17 @@ export const findAllCategoriesForTree = () => {
     ],
   });
 };
+
+export const categoryExists = async (
+  id: string
+): Promise<boolean> => {
+  const category =
+    await prisma.category.findUnique({
+      where: { id },
+      select: {
+        id: true,
+      },
+    });
+
+  return !!category;
+};

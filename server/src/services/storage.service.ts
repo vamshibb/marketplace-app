@@ -29,3 +29,21 @@ export const uploadImage = async (
 
   return blockBlobClient.url;
 };
+
+export const deleteImage = async (
+  imageUrl: string
+): Promise<void> => {
+  const fileName =
+    imageUrl.split("/").pop();
+
+  if (!fileName) {
+    return;
+  }
+
+  const blockBlobClient =
+    containerClient.getBlockBlobClient(
+      fileName
+    );
+
+  await blockBlobClient.deleteIfExists();
+};

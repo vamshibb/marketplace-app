@@ -4,26 +4,48 @@ import { AppError } from "../errors/AppError";
 import * as productService
   from "../services/product.service";
 import { successResponse } from "../utils/apiResponse";
+import "multer";
+import { uploadImage,deleteImage } from "../services/storage.service";
+import * as categoryService from "../services/category.service";
 
 export const createProduct = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
+  let image: string | undefined;
+
   try {
     const {
       title,
       description,
       price,
-      image,
       categoryId,
     } = req.body;
+
+    if (categoryId) {
+      const exists =
+        await categoryService.categoryExists(
+          categoryId
+        );
+
+      if (!exists) {
+        throw new AppError(
+          "Category not found",
+          400
+        );
+      }
+    }
+
+    if (req.file) {
+      image = await uploadImage(req.file);
+    }
 
     const product =
       await productService.createProduct({
         title,
         description,
-        price,
+        price: Number(price),
         image,
         categoryId,
         sellerId: req.user!.id,
@@ -38,9 +60,21 @@ export const createProduct = async (
         )
       );
   } catch (error) {
+    if (image) {
+      try {
+        await deleteImage(image);
+      } catch (deleteError) {
+        console.error(
+          "Failed to delete uploaded image:",
+          deleteError
+        );
+      }
+    }
+
     next(error);
   }
 };
+
 export const getProducts = async (
   req: Request,
   res: Response,
