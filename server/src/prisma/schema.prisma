@@ -7,6 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
 model User {
   id        String     @id @default(cuid())
   email     String     @unique
@@ -42,19 +47,23 @@ model Category {
 }
 
 model Product {
-  id          String     @id @default(cuid())
+  id          String         @id @default(cuid())
   title       String
   description String
   price       Float
-  image       String?
-  createdAt   DateTime   @default(now())
+
   sellerId    String
   categoryId  String?
-  updatedAt   DateTime   @updatedAt
-  favorites   Favorite[]
-  category    Category?  @relation(fields: [categoryId], references: [id])
-  seller      User       @relation(fields: [sellerId], references: [id])
-  reviews     Review[]
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  seller       User          @relation(fields: [sellerId], references: [id])
+  category     Category?     @relation(fields: [categoryId], references: [id])
+
+  media        ProductMedia[]
+  reviews      Review[]
+  favorites    Favorite[]
 }
 
 model Favorite {
@@ -81,4 +90,22 @@ model Review {
   user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, productId])
+}
+
+model ProductMedia {
+  id         String      @id @default(cuid())
+
+  url        String
+  blobName   String
+  mediaType  MediaType
+  sortOrder  Int         @default(0)
+
+  productId  String
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([productId])
+  @@index([productId, sortOrder])
 }

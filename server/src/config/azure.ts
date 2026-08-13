@@ -13,12 +13,3 @@ export const blobServiceClient =
   BlobServiceClient.fromConnectionString(
     connectionString
   );
-
-export const containerName =
-  process.env.AZURE_STORAGE_CONTAINER_NAME ||
-  "product-images";
-
-export const containerClient =
-  blobServiceClient.getContainerClient(
-    containerName
-  );

@@ -97,3 +97,15 @@ export const deleteProduct = (id: string) => {
     where: { id },
   });
 };
+
+export const findProductOwner = (
+  id: string
+) => {
+  return prisma.product.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      sellerId: true,
+    },
+  });
+};

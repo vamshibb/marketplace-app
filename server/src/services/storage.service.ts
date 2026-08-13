@@ -1,21 +1,39 @@
-import { BlockBlobClient } from "@azure/storage-blob";
+import {
+  BlockBlobClient,
+  ContainerClient,
+} from "@azure/storage-blob";
 import { randomUUID } from "crypto";
 import path from "path";
 import "multer";
 
-import { containerClient } from "../config/azure";
+import { blobServiceClient } from "../config/azure";
+import { UploadResult } from "../types/storage";
 
-export const uploadImage = async (
-  file: Express.Multer.File
-): Promise<string> => {
-  const extension = path.extname(file.originalname);
+export const generateBlobName = (
+  originalName: string
+): string => {
+  const extension = path.extname(originalName);
 
-  const fileName =
-    `${randomUUID()}${extension}`;
+  return `${randomUUID()}${extension}`;
+};
+
+export const uploadFile = async (
+  file: Express.Multer.File,
+  container: string,
+  blobName?: string
+): Promise<UploadResult> => {
+  const finalBlobName =
+    blobName ??
+    generateBlobName(file.originalname);
+
+  const containerClient: ContainerClient =
+    blobServiceClient.getContainerClient(
+      container
+    );
 
   const blockBlobClient: BlockBlobClient =
     containerClient.getBlockBlobClient(
-      fileName
+      finalBlobName
     );
 
   await blockBlobClient.uploadData(
@@ -27,22 +45,24 @@ export const uploadImage = async (
     }
   );
 
-  return blockBlobClient.url;
+  return {
+    url: blockBlobClient.url,
+    blobName: finalBlobName,
+  };
 };
 
-export const deleteImage = async (
-  imageUrl: string
+export const deleteFile = async (
+  blobName: string,
+  container: string
 ): Promise<void> => {
-  const fileName =
-    imageUrl.split("/").pop();
-
-  if (!fileName) {
-    return;
-  }
+  const containerClient =
+    blobServiceClient.getContainerClient(
+      container
+    );
 
   const blockBlobClient =
     containerClient.getBlockBlobClient(
-      fileName
+      blobName
     );
 
   await blockBlobClient.deleteIfExists();
