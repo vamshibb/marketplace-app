@@ -4,7 +4,6 @@ import {
 } from "@azure/storage-blob";
 import { randomUUID } from "crypto";
 import path from "path";
-import "multer";
 
 import { blobServiceClient } from "../config/azure";
 import { UploadResult } from "../types/storage";

@@ -58,7 +58,7 @@ export const countByProductId = (
   });
 };
 
-export const createManyMedia = (
+export const createManyMediaRecords = (
   data: Prisma.ProductMediaCreateManyInput[]
 ) => {
   return prisma.productMedia.createManyAndReturn({
