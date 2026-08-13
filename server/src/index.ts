@@ -13,7 +13,6 @@ import favoriteRoutes
   from "./routes/favorite.routes";
 import reviewRoutes
   from "./routes/review.routes";
-import uploadRoutes from "./routes/upload.routes";
 
 dotenv.config();
 
@@ -45,7 +44,6 @@ app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/reviews", reviewRoutes);
-app.use("/api/uploads", uploadRoutes);
 app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;
