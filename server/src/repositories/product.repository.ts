@@ -26,6 +26,11 @@ export const findProducts = (options: {
           slug: true,
         },
       },
+      media: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
     },
   });
 };
@@ -68,6 +73,11 @@ export const findProductById = (id: string) => {
         },
         orderBy: {
           createdAt: "desc",
+        },
+      },
+      media: {
+        orderBy: {
+          sortOrder: "asc",
         },
       },
     },

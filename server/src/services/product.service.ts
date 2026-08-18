@@ -1,5 +1,16 @@
-import { Prisma } from "../generated/prisma";
+import {
+  Prisma,
+  ProductMedia,
+} from "../generated/prisma";
+import { toProductMediaDto } from "../dto/productMedia.dto";
 import * as productRepository from "../repositories/product.repository";
+
+const withMediaDto = <T extends { media: ProductMedia[] }>(
+  product: T
+) => ({
+  ...product,
+  media: product.media.map(toProductMediaDto),
+});
 
 export const getAllProducts = async (
   page: number,
@@ -72,7 +83,7 @@ export const getAllProducts = async (
   ]);
 
   return {
-    products,
+    products: products.map(withMediaDto),
     total,
   };
 };
@@ -99,7 +110,7 @@ export const findProductById = async (
         ) / reviewCount;
 
   return {
-    ...product,
+    ...withMediaDto(product),
     reviewCount,
     averageRating: Number(
       averageRating.toFixed(1)
