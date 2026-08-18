@@ -82,3 +82,32 @@ export const deleteProductMedia = async (
     next(error);
   }
 };
+
+export const reorderProductMedia = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    await productMediaService.reorderMedia(
+      req.params.productId,
+      req.body.mediaIds,
+      userId
+    );
+
+    res.json(
+      successResponse(
+        undefined,
+        "Product media reordered successfully"
+      )
+    );
+  } catch (error) {
+    next(error);
+  }
+};

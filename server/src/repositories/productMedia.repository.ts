@@ -66,3 +66,16 @@ export const createManyMediaRecords = (
   });
 };
 
+export const updateMediaSortOrders = async (
+  mediaIds: string[]
+): Promise<void> => {
+  await prisma.$transaction(
+    mediaIds.map((id, sortOrder) =>
+      prisma.productMedia.update({
+        where: { id },
+        data: { sortOrder },
+      })
+    )
+  );
+};
+

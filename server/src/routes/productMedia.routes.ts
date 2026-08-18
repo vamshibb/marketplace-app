@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   deleteProductMedia,
   getProductMedia,
+  reorderProductMedia,
   uploadMedia,
 } from "../controllers/productMedia.controller";
 import {
@@ -11,6 +12,8 @@ import {
 } from "../constants/media.constants";
 import { authMiddleware } from "../middleware/authMiddleware";
 import { upload } from "../middleware/upload.middleware";
+import { validate } from "../middleware/validationMiddleware";
+import { reorderProductMediaSchema } from "../validators/productMedia.validator";
 
 const router = Router();
 
@@ -33,6 +36,13 @@ router.delete(
   "/:productId/media/:mediaId",
   authMiddleware,
   deleteProductMedia
+);
+
+router.patch(
+  "/:productId/media/order",
+  authMiddleware,
+  validate(reorderProductMediaSchema),
+  reorderProductMedia
 );
 
 export default router;

@@ -3,6 +3,7 @@ import {
   Request,
   Response,
 } from "express";
+import { z } from "zod";
 
 import {
   ALLOWED_IMAGE_TYPES,
@@ -10,6 +11,11 @@ import {
   MEDIA_LIMITS,
 } from "../constants/media.constants";
 import { AppError } from "../errors/AppError";
+
+export const reorderProductMediaSchema = z.object({
+mediaIds: z
+  .array(z.string().min(1))
+  .min(1)});
 
 const isImage = (mimeType: string): boolean => {
   return ALLOWED_IMAGE_TYPES.includes(mimeType);

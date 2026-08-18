@@ -176,3 +176,39 @@ export const deleteMedia = async (
   await deleteFile(media.blobName, container);
   await productMediaRepository.deleteMedia(mediaId);
 };
+
+export const reorderMedia = async (
+  productId: string,
+  mediaIds: string[],
+  userId: string
+): Promise<void> => {
+  await validateOwnership(productId, userId);
+
+  const uniqueMediaIds = new Set(mediaIds);
+
+  if (uniqueMediaIds.size !== mediaIds.length) {
+    throw new AppError("Duplicate media IDs are not allowed", 400);
+  }
+
+  const productMedia =
+    await productMediaRepository.findMediaByProductId(productId);
+  const productMediaIds = new Set(
+    productMedia.map((media) => media.id)
+  );
+
+  if (!mediaIds.every((mediaId) => productMediaIds.has(mediaId))) {
+    throw new AppError(
+      "One or more media items do not belong to this product",
+      400
+    );
+  }
+
+  if (mediaIds.length !== productMedia.length) {
+    throw new AppError(
+      "Every product media item must be included",
+      400
+    );
+  }
+
+  await productMediaRepository.updateMediaSortOrders(mediaIds);
+};
