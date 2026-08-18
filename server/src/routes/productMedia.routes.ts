@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import {
+  deleteProductMedia,
   getProductMedia,
   uploadMedia,
 } from "../controllers/productMedia.controller";
@@ -26,6 +27,12 @@ router.post(
     MEDIA_LIMITS.MAX_FILES
   ),
   uploadMedia
+);
+
+router.delete(
+  "/:productId/media/:mediaId",
+  authMiddleware,
+  deleteProductMedia
 );
 
 export default router;

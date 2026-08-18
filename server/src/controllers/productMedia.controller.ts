@@ -53,3 +53,32 @@ export const uploadMedia = async (
     next(error);
   }
 };
+
+export const deleteProductMedia = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    await productMediaService.deleteMedia(
+      req.params.productId,
+      req.params.mediaId,
+      userId
+    );
+
+    res.json(
+      successResponse(
+        undefined,
+        "Product media deleted successfully"
+      )
+    );
+  } catch (error) {
+    next(error);
+  }
+};

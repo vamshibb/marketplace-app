@@ -150,6 +150,29 @@ export const updateMedia = (
   );
 };
 
-export const deleteMedia = (id: string) => {
-  return productMediaRepository.deleteMedia(id);
+export const deleteMedia = async (
+  productId: string,
+  mediaId: string,
+  userId: string
+): Promise<void> => {
+  const product = await productRepository.findProductOwner(productId);
+
+  if (!product) {
+    throw new AppError("Product not found", 404);
+  }
+
+  const media = await productMediaRepository.findMediaById(mediaId);
+
+  if (!media || media.productId !== productId) {
+    throw new AppError("Product media not found", 404);
+  }
+
+  if (product.sellerId !== userId) {
+    throw new AppError("Forbidden", 403);
+  }
+
+  const container = getContainerByMediaType(media.mediaType);
+
+  await deleteFile(media.blobName, container);
+  await productMediaRepository.deleteMedia(mediaId);
 };
