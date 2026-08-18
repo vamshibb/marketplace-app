@@ -1,6 +1,9 @@
 import { Router } from "express";
 
-import { uploadMedia } from "../controllers/productMedia.controller";
+import {
+  getProductMedia,
+  uploadMedia,
+} from "../controllers/productMedia.controller";
 import {
   MEDIA_FIELD_NAME,
   MEDIA_LIMITS,
@@ -9,6 +12,11 @@ import { authMiddleware } from "../middleware/authMiddleware";
 import { upload } from "../middleware/upload.middleware";
 
 const router = Router();
+
+router.get(
+  "/:productId/media",
+  getProductMedia
+);
 
 router.post(
   "/:productId/media",

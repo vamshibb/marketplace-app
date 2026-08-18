@@ -120,12 +120,20 @@ export const createMedia = (
   return productMediaRepository.createMedia(data);
 };
 
-export const getMediaByProductId = (
+export const getMediaByProductId = async (
   productId: string
-) => {
-  return productMediaRepository.findMediaByProductId(
+): Promise<ProductMediaDto[]> => {
+  const product = await productRepository.findProductOwner(productId);
+
+  if (!product) {
+    throw new AppError("Product not found", 404);
+  }
+
+  const media = await productMediaRepository.findMediaByProductId(
     productId
   );
+
+  return media.map(toProductMediaDto);
 };
 
 export const getMediaById = (id: string) => {

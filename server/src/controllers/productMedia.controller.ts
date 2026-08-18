@@ -1,5 +1,6 @@
 import {
   NextFunction,
+  Request,
   Response,
 } from "express";
 
@@ -7,6 +8,22 @@ import { AppError } from "../errors/AppError";
 import { AuthRequest } from "../middleware/authMiddleware";
 import * as productMediaService from "../services/productMedia.service";
 import { successResponse } from "../utils/apiResponse";
+
+export const getProductMedia = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const media = await productMediaService.getMediaByProductId(
+      req.params.productId
+    );
+
+    res.json(successResponse(media));
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const uploadMedia = async (
   req: AuthRequest,
