@@ -1,45 +1,27 @@
-import { prisma } from "../prisma/client";
+import * as favoriteRepository from "../repositories/favorite.repository";
 
 export const addFavorite = (
   userId: string,
   productId: string
 ) => {
-  return prisma.favorite.create({
-    data: {
-      userId,
-      productId,
-    },
-  });
+  return favoriteRepository.addFavorite(
+    userId,
+    productId
+  );
 };
 
 export const removeFavorite = (
   userId: string,
   productId: string
 ) => {
-  return prisma.favorite.delete({
-    where: {
-      userId_productId: {
-        userId,
-        productId,
-      },
-    },
-  });
+  return favoriteRepository.removeFavorite(
+    userId,
+    productId
+  );
 };
 
 export const getFavorites = (
   userId: string
 ) => {
-  return prisma.favorite.findMany({
-    where: {
-      userId,
-    },
-
-    include: {
-      product: {
-        include: {
-          category: true,
-        },
-      },
-    },
-  });
+  return favoriteRepository.getFavorites(userId);
 };
