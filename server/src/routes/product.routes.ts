@@ -12,17 +12,25 @@ import {
   authMiddleware,
 } from "../middleware/authMiddleware";
 
-import { validate } from "../middleware/validationMiddleware";
+import {
+  validate,
+  validateQuery,
+} from "../middleware/validationMiddleware";
 
 import {
   createProductSchema,
+  getProductsQuerySchema,
   updateProductSchema,
 } from "../validators/productValidators";
 import { createReview, getProductReviews } from "../controllers/review.controller";
 import { upload } from "../middleware/upload.middleware";
 const router = Router();
 
-router.get("/", getProducts);
+router.get(
+  "/",
+  validateQuery(getProductsQuerySchema),
+  getProducts
+);
 router.get(
   "/:productId/reviews",
   getProductReviews

@@ -1,46 +1,67 @@
 import { prisma } from "../prisma/client";
 import { Prisma } from "../generated/prisma";
 
-export const findProducts = (options: {
-  where: Prisma.ProductWhereInput;
-  orderBy: Prisma.ProductOrderByWithRelationInput;
-  skip: number;
-  take: number;
-}) => {
-  return prisma.product.findMany({
-    where: options.where,
-    orderBy: options.orderBy,
-    skip: options.skip,
-    take: options.take,
-    include: {
-      seller: {
-        select: {
-          id: true,
-          email: true,
-        },
-      },
-      category: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-        },
-      },
-      media: {
-        orderBy: {
-          sortOrder: "asc",
-        },
-      },
-    },
-  });
-};
+export interface ProductFilters {
+  page: number;
+  limit: number;
+  search?: string;
+}
 
-export const countProducts = (
-  where: Prisma.ProductWhereInput
+export const findProducts = async (
+  filters: ProductFilters
 ) => {
-  return prisma.product.count({
-    where,
-  });
+  const where: Prisma.ProductWhereInput = {};
+
+  if (filters.search) {
+    where.OR = [
+      {
+        title: {
+          contains: filters.search,
+          mode: "insensitive",
+        },
+      },
+      {
+        description: {
+          contains: filters.search,
+          mode: "insensitive",
+        },
+      },
+    ];
+  }
+
+  const skip = (filters.page - 1) * filters.limit;
+
+  const [products, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: filters.limit,
+      include: {
+        seller: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        media: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+        },
+      },
+    }),
+    prisma.product.count({ where }),
+  ]);
+
+  return { products, total };
 };
 
 export const findProductById = (id: string) => {

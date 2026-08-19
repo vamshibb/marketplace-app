@@ -24,3 +24,23 @@ export const validate = (
     }
   };
 };
+
+export const validateQuery = (
+  schema: z.ZodTypeAny
+) => {
+  return (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      schema.parse(req.query);
+      next();
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+      });
+    }
+  };
+};

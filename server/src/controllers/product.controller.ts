@@ -66,40 +66,25 @@ export const getProducts = async (
 ) => {
   try {
     const page = Number(
-      req.query.page
-    ) || 1;
+      req.query.page ?? 1
+    );
 
     const limit = Number(
-      req.query.limit
-    ) || 10;
+      req.query.limit ?? 10
+    );
     const search =
-      req.query.search?.toString() || "";
-    const minPrice =
-      req.query.minPrice
-        ? Number(req.query.minPrice)
-        : undefined;
-
-    const maxPrice =
-      req.query.maxPrice
-        ? Number(req.query.maxPrice)
-        : undefined;
-    const sort =
-      req.query.sort?.toString();
-    const category =
-      req.query.category?.toString();
+      req.query.search?.toString().trim();
 
     const {
       products,
       total,
     } =
       await productService.getAllProducts(
-        page,
-        limit,
-        search,
-        minPrice,
-        maxPrice,
-        sort,
-        category
+        {
+          page,
+          limit,
+          search,
+        }
       );
 
     res.json({

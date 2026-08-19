@@ -11,3 +11,9 @@ export const createProductSchema =
 
 export const updateProductSchema =
   createProductSchema.partial();
+
+export const getProductsQuerySchema = z.object({
+  search: z.string().trim().min(1).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+}).strict();
