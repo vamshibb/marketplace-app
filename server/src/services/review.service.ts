@@ -1,4 +1,17 @@
 import * as reviewRepository from "../repositories/review.repository";
+import * as productRepository from "../repositories/product.repository";
+import { AppError } from "../errors/AppError";
+
+const validateReviewOwnership = async (
+  id: string,
+  userId: string
+) => {
+  const review = await getReviewById(id);
+
+  if (review.userId !== userId) {
+    throw new AppError("Not authorized", 403);
+  }
+};
 
 export const createReview = (
   userId: string,
@@ -14,29 +27,47 @@ export const createReview = (
   );
 };
 
-export const getProductReviews = (
+export const getProductReviews = async (
   productId: string
 ) => {
+  const product = await productRepository.findProductOwner(productId);
+
+  if (!product) {
+    throw new AppError("Product not found", 404);
+  }
+
   return reviewRepository.getProductReviews(
     productId
   );
 };
 
-export const getReviewById = (
+export const getReviewById = async (
   id: string
 ) => {
-  return reviewRepository.getReviewById(id);
+  const review = await reviewRepository.getReviewById(id);
+
+  if (!review) {
+    throw new AppError("Review not found", 404);
+  }
+
+  return review;
 };
 
-export const updateReview = (
+export const updateReview = async (
   id: string,
-  data: Parameters<typeof reviewRepository.updateReview>[1]
+  data: Parameters<typeof reviewRepository.updateReview>[1],
+  userId: string
 ) => {
+  await validateReviewOwnership(id, userId);
+
   return reviewRepository.updateReview(id, data);
 };
 
-export const deleteReview = (
-  id: string
+export const deleteReview = async (
+  id: string,
+  userId: string
 ) => {
+  await validateReviewOwnership(id, userId);
+
   return reviewRepository.deleteReview(id);
 };

@@ -19,7 +19,6 @@ import { successResponse }
 
 import { AppError }
   from "../errors/AppError";
-import * as productService from "../services/product.service";
 
 export const createReview = async (
   req: AuthRequest,
@@ -69,18 +68,6 @@ export const getProductReviews =
     next: NextFunction
   ) => {
     try {
-      const product =
-        await productService.findProductById(
-          req.params.productId
-        );
-
-      if (!product) {
-        throw new AppError(
-          "Product not found",
-          404
-        );
-      }
-
       const reviews =
         await reviewService.getProductReviews(
           req.params.productId
@@ -101,27 +88,6 @@ export const updateReview =
     next: NextFunction
   ) => {
     try {
-      const review =
-        await reviewService.getReviewById(
-          req.params.reviewId
-        );
-
-      if (!review) {
-        throw new AppError(
-          "Review not found",
-          404
-        );
-      }
-
-      if (
-        review.userId !== req.user?.id
-      ) {
-        throw new AppError(
-          "Not authorized",
-          403
-        );
-      }
-
       const validatedData =
         updateReviewSchema.parse(
           req.body
@@ -130,7 +96,8 @@ export const updateReview =
       const updatedReview =
         await reviewService.updateReview(
           req.params.reviewId,
-          validatedData
+          validatedData,
+          req.user!.id
         );
 
       res.json(
@@ -151,29 +118,9 @@ export const deleteReview =
     next: NextFunction
   ) => {
     try {
-      const review =
-        await reviewService.getReviewById(
-          req.params.reviewId
-        );
-
-      if (!review) {
-        throw new AppError(
-          "Review not found",
-          404
-        );
-      }
-
-      if (
-        review.userId !== req.user?.id
-      ) {
-        throw new AppError(
-          "Not authorized",
-          403
-        );
-      }
-
       await reviewService.deleteReview(
-        req.params.reviewId
+        req.params.reviewId,
+        req.user!.id
       );
 
       res.json(
