@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import categoryRoutes from "./routes/category.routes";
+import { env } from "./config/env";
 
 import authRoutes from "./routes/auth.routes";
 import {
@@ -15,7 +15,6 @@ import reviewRoutes
   from "./routes/review.routes";
 import productMediaRoutes
   from "./routes/productMedia.routes";
-dotenv.config();
 
 const app = express();
 
@@ -48,8 +47,6 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/products", productMediaRoutes);
 app.use(errorMiddleware);
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(env.PORT, () => {
+  console.log(`Server running on port ${env.PORT}`);
 });
