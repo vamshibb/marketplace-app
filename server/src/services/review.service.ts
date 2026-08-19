@@ -1,5 +1,4 @@
-import { Prisma } from "../generated/prisma";
-import { prisma } from "../prisma/client";
+import * as reviewRepository from "../repositories/review.repository";
 
 export const createReview = (
   userId: string,
@@ -7,61 +6,37 @@ export const createReview = (
   rating: number,
   comment?: string
 ) => {
-  return prisma.review.create({
-    data: {
-      userId,
-      productId,
-      rating,
-      comment,
-    },
-  });
+  return reviewRepository.createReview(
+    userId,
+    productId,
+    rating,
+    comment
+  );
 };
 
 export const getProductReviews = (
   productId: string
 ) => {
-  return prisma.review.findMany({
-    where: {
-      productId,
-    },
-
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-        },
-      },
-    },
-
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  return reviewRepository.getProductReviews(
+    productId
+  );
 };
 
 export const getReviewById = (
   id: string
 ) => {
-  return prisma.review.findUnique({
-    where: { id },
-  });
+  return reviewRepository.getReviewById(id);
 };
 
 export const updateReview = (
   id: string,
-  data: Prisma.ReviewUpdateInput
+  data: Parameters<typeof reviewRepository.updateReview>[1]
 ) => {
-  return prisma.review.update({
-    where: { id },
-    data,
-  });
+  return reviewRepository.updateReview(id, data);
 };
 
 export const deleteReview = (
   id: string
 ) => {
-  return prisma.review.delete({
-    where: { id },
-  });
+  return reviewRepository.deleteReview(id);
 };
