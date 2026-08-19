@@ -12,10 +12,7 @@ import {
   authMiddleware,
 } from "../middleware/authMiddleware";
 
-import {
-  validate,
-  validateQuery,
-} from "../middleware/validationMiddleware";
+import { validate } from "../middleware/validationMiddleware";
 
 import {
   createProductSchema,
@@ -28,7 +25,7 @@ const router = Router();
 
 router.get(
   "/",
-  validateQuery(getProductsQuerySchema),
+  validate(getProductsQuerySchema, "query"),
   getProducts
 );
 router.get(

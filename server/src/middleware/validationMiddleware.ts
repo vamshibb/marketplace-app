@@ -5,28 +5,11 @@ import {
   NextFunction,
 } from "express";
 
-export const validate = (
-  schema: z.ZodTypeAny
-) => {
-  return (
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ) => {
-    try {
-      schema.parse(req.body);
-      next();
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-      });
-    }
-  };
-};
+type ValidationSource = "body" | "query" | "params";
 
-export const validateQuery = (
-  schema: z.ZodTypeAny
+export const validate = (
+  schema: z.ZodTypeAny,
+  source: ValidationSource = "body"
 ) => {
   return (
     req: Request,
@@ -34,7 +17,7 @@ export const validateQuery = (
     next: NextFunction
   ) => {
     try {
-      schema.parse(req.query);
+      schema.parse(req[source]);
       next();
     } catch (error) {
       return res.status(400).json({
