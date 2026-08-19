@@ -21,6 +21,9 @@ import {
 } from "../validators/productValidators";
 import { createReview, getProductReviews } from "../controllers/review.controller";
 import { upload } from "../middleware/upload.middleware";
+import {
+  productIdParamSchema,
+} from "../validators/commonValidators";
 const router = Router();
 
 router.get(
@@ -30,15 +33,21 @@ router.get(
 );
 router.get(
   "/:productId/reviews",
+  validate(productIdParamSchema, "params"),
   getProductReviews
 );
 
 router.post(
   "/:productId/reviews",
   authMiddleware,
+  validate(productIdParamSchema, "params"),
   createReview
 );
-router.get("/:id", getProductById);
+router.get(
+  "/:id",
+  validate(productIdParamSchema, "params"),
+  getProductById
+);
 
 router.post(
   "/",
@@ -51,6 +60,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
+  validate(productIdParamSchema, "params"),
   validate(updateProductSchema),
   updateProduct
 );
@@ -58,6 +68,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
+  validate(productIdParamSchema, "params"),
   deleteProduct
 );
 

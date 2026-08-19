@@ -8,6 +8,8 @@ import {
 
 import { authMiddleware }
   from "../middleware/authMiddleware";
+import { validate } from "../middleware/validationMiddleware";
+import { productIdParamSchema } from "../validators/commonValidators";
 
 const router = Router();
 
@@ -17,11 +19,13 @@ router.get("/", getFavorites);
 
 router.post(
   "/:productId",
+  validate(productIdParamSchema, "params"),
   addFavorite
 );
 
 router.delete(
   "/:productId",
+  validate(productIdParamSchema, "params"),
   removeFavorite
 );
 
