@@ -5,6 +5,10 @@ export interface ProductFilters {
   page: number;
   limit: number;
   search?: string;
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  sort?: string;
 }
 
 export const findProducts = async (
@@ -29,12 +33,34 @@ export const findProducts = async (
     ];
   }
 
+  if (filters.categoryId) {
+    where.categoryId = filters.categoryId;
+  }
+
+  if (
+    filters.minPrice !== undefined ||
+    filters.maxPrice !== undefined
+  ) {
+    where.price = {
+      gte: filters.minPrice,
+      lte: filters.maxPrice,
+    };
+  }
+
   const skip = (filters.page - 1) * filters.limit;
+  const orderBy: Prisma.ProductOrderByWithRelationInput =
+    filters.sort === "oldest"
+      ? { createdAt: "asc" }
+      : filters.sort === "price_asc"
+      ? { price: "asc" }
+      : filters.sort === "price_desc"
+      ? { price: "desc" }
+      : { createdAt: "desc" };
 
   const [products, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy,
       skip,
       take: filters.limit,
       include: {

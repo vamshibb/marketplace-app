@@ -4,6 +4,7 @@ import { AppError } from "../errors/AppError";
 import * as productService
   from "../services/product.service";
 import { successResponse } from "../utils/apiResponse";
+import { buildPagination } from "../utils/pagination";
 import "multer";
 import * as categoryService from "../services/category.service";
 
@@ -74,33 +75,42 @@ export const getProducts = async (
     );
     const search =
       req.query.search?.toString().trim();
+    const categoryId =
+      req.query.categoryId?.toString().trim();
+    const minPrice = req.query.minPrice !== undefined
+      ? Number(req.query.minPrice)
+      : undefined;
+    const maxPrice = req.query.maxPrice !== undefined
+      ? Number(req.query.maxPrice)
+      : undefined;
+    const sort = req.query.sort?.toString();
+
+    const filters = {
+      page,
+      limit,
+      search,
+      categoryId,
+      minPrice,
+      maxPrice,
+      sort,
+    };
 
     const {
       products,
       total,
     } =
       await productService.getAllProducts(
-        {
-          page,
-          limit,
-          search,
-        }
+        filters
       );
 
     res.json({
       success: true,
       data: products,
-
-      pagination: {
+      pagination: buildPagination(
         page,
         limit,
-        total,
-
-        totalPages:
-          Math.ceil(
-            total / limit
-          ),
-      },
+        total
+      ),
     });
   } catch (error) {
     next(error);

@@ -14,6 +14,24 @@ export const updateProductSchema =
 
 export const getProductsQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
+  categoryId: z.string().trim().min(1).optional(),
+  minPrice: z.coerce.number().nonnegative().optional(),
+  maxPrice: z.coerce.number().nonnegative().optional(),
+  sort: z.enum([
+    "newest",
+    "oldest",
+    "price_asc",
+    "price_desc",
+  ]).optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional(),
-}).strict();
+}).strict().refine(
+  ({ minPrice, maxPrice }) =>
+    minPrice === undefined ||
+    maxPrice === undefined ||
+    minPrice <= maxPrice,
+  {
+    message: "minPrice must be less than or equal to maxPrice",
+    path: ["maxPrice"],
+  }
+);
