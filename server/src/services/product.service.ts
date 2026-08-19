@@ -3,6 +3,7 @@ import {
   ProductMedia,
 } from "../generated/prisma";
 import { toProductMediaDto } from "../dto/productMedia.dto";
+import { AppError } from "../errors/AppError";
 import * as productRepository from "../repositories/product.repository";
 
 const withMediaDto = <T extends { media: ProductMedia[] }>(
@@ -11,6 +12,29 @@ const withMediaDto = <T extends { media: ProductMedia[] }>(
   ...product,
   media: product.media.map(toProductMediaDto),
 });
+
+const findProductOrThrow = async (
+  id: string
+) => {
+  const product = await productRepository.findProductById(id);
+
+  if (!product) {
+    throw new AppError("Product not found", 404);
+  }
+
+  return product;
+};
+
+const validateProductOwnership = async (
+  id: string,
+  userId: string
+) => {
+  const product = await findProductOrThrow(id);
+
+  if (product.sellerId !== userId) {
+    throw new AppError("Not authorized", 403);
+  }
+};
 
 export const getAllProducts = async (
   filters: productRepository.ProductFilters
@@ -27,12 +51,7 @@ export const getAllProducts = async (
 export const findProductById = async (
   id: string
 ) => {
-  const product =
-    await productRepository.findProductById(id);
-
-  if (!product) {
-    return null;
-  }
+  const product = await findProductOrThrow(id);
 
   const reviewCount =
     product.reviews.length;
@@ -60,13 +79,21 @@ export const createProduct = (
   return productRepository.createProduct(data);
 };
 
-export const updateProduct = (
+export const updateProduct = async (
   id: string,
-  data: Prisma.ProductUncheckedUpdateInput
+  data: Prisma.ProductUncheckedUpdateInput,
+  userId: string
 ) => {
+  await validateProductOwnership(id, userId);
+
   return productRepository.updateProduct(id, data);
 };
 
-export const deleteProduct = (id: string) => {
+export const deleteProduct = async (
+  id: string,
+  userId: string
+) => {
+  await validateProductOwnership(id, userId);
+
   return productRepository.deleteProduct(id);
 };

@@ -127,12 +127,6 @@ export const getProductById = async (
       await productService.findProductById(
         req.params.id
       );
-    if (!product) {
-      throw new AppError(
-        "Product not found",
-        404
-      );
-    }
 
     res.json(successResponse(product));
   } catch (error) {
@@ -146,31 +140,11 @@ export const updateProduct = async (
   next: NextFunction
 ) => {
   try {
-    const product =
-      await productService.findProductById(
-        req.params.id
-      );
-
-    if (!product) throw new AppError(
-      "Product not found",
-      404
-    );
-
-
-    if (
-      product.sellerId !==
-      req.user?.id
-    ) {
-      throw new AppError(
-        "Not authorized",
-        403
-      );
-    }
-
     const updatedProduct =
       await productService.updateProduct(
         req.params.id,
-        req.body
+        req.body,
+        req.user!.id
       );
 
     res.json(
@@ -190,29 +164,9 @@ export const deleteProduct = async (
   next: NextFunction
 ) => {
   try {
-    const product =
-      await productService.findProductById(
-        req.params.id
-      );
-
-    if (!product) {
-      throw new AppError(
-        "Product not found",
-        404
-      );
-    }
-
-    if (
-      product.sellerId !== req.user?.id
-    ) {
-      throw new AppError(
-        "Not authorized",
-        403
-      );
-    }
-
     await productService.deleteProduct(
-      req.params.id
+      req.params.id,
+      req.user!.id
     );
 
     res.json(
