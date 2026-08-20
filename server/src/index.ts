@@ -15,6 +15,10 @@ import reviewRoutes
   from "./routes/review.routes";
 import productMediaRoutes
   from "./routes/productMedia.routes";
+import conversationRoutes
+  from "./routes/conversation.routes";
+import messageRoutes
+  from "./routes/message.routes";
 
 const app = express();
 
@@ -45,6 +49,8 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/products", productMediaRoutes);
+app.use("/api", conversationRoutes);
+app.use("/api", messageRoutes);
 app.use(errorMiddleware);
 
 app.listen(env.PORT, () => {

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import {
   Request,
   Response,
@@ -17,13 +17,20 @@ export const validate = (
     next: NextFunction
   ) => {
     try {
-      schema.parse(req[source]);
+      const validatedData = schema.parse(req[source]);
+
+      Object.assign(req[source], validatedData);
       next();
     } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation failed",
-      });
+      if (error instanceof ZodError) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: error.issues,
+        });
+      }
+
+      next(error);
     }
   };
 };
