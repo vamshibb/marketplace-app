@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository follows a defined architecture and development workflow. Before implementing any feature or making changes, read `docs/AI_CONTEXT.md`.
+This repository follows a defined architecture and development workflow. Before implementing any feature or making changes, read `AI_CONTEXT.md`.
 
 The goal is to maintain a clean, scalable, and production-ready codebase. Prefer extending existing patterns instead of introducing new ones.
 
@@ -88,7 +88,7 @@ Never bypass a layer unless explicitly instructed.
 
 # Before Implementing a Feature
 
-1. Read `docs/AI_CONTEXT.md`.
+1. Read `AI_CONTEXT.md`.
 2. Review the existing implementation.
 3. Reuse existing services, repositories, and utilities.
 4. Identify whether new architecture is actually required.
