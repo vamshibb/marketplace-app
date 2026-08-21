@@ -20,6 +20,14 @@ enum NotificationType {
   SYSTEM
 }
 
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
 model User {
   id                       String                    @id @default(cuid())
   email                    String                    @unique
@@ -33,6 +41,8 @@ model User {
   sentMessages             Message[]
   receivedNotifications    Notification[]            @relation("NotificationRecipient")
   sentNotifications        Notification[]            @relation("NotificationSender")
+  purchasedOrders          Order[]                   @relation("OrderBuyer")
+  soldOrders               Order[]                   @relation("OrderSeller")
 }
 
 model Category {
@@ -77,6 +87,7 @@ model Product {
   reviews       Review[]
   favorites     Favorite[]
   conversations Conversation[]
+  orders        Order[]
 }
 
 model Favorite {
@@ -187,4 +198,32 @@ model Notification {
   @@index([recipientId])
   @@index([recipientId, isRead])
 @@index([recipientId, createdAt(sort: Desc)])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  buyerId       String
+  sellerId      String
+  productId     String
+  quantity      Int         @default(1)
+  unitPrice     Decimal     @db.Decimal(10, 2)
+  productTitle  String
+  status        OrderStatus @default(PENDING)
+  requestedFrom DateTime?
+  requestedTo   DateTime?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  buyer   User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller  User    @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([productId])
+  @@index([status])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@index([createdAt(sort: Desc)])
 }
