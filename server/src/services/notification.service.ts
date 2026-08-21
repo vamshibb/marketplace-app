@@ -8,6 +8,21 @@ const buildMessageBody = (
   senderEmail: string,
   productTitle: string
 ) => `${senderEmail} sent you a message about ${productTitle}`;
+const ORDER_CREATED_NOTIFICATION_TITLE = "New Order";
+const buildOrderCreatedBody = (
+  senderEmail: string,
+  productTitle: string
+) => `${senderEmail} placed an order for ${productTitle}`;
+const ORDER_ACCEPTED_NOTIFICATION_TITLE = "Order Accepted";
+const buildOrderAcceptedBody = (
+  senderEmail: string,
+  productTitle: string
+) => `${senderEmail} accepted your order for ${productTitle}`;
+const ORDER_REJECTED_NOTIFICATION_TITLE = "Order Rejected";
+const buildOrderRejectedBody = (
+  senderEmail: string,
+  productTitle: string
+) => `${senderEmail} rejected your order for ${productTitle}`;
 
 export interface MessageNotificationPayload {
   recipientId: string;
@@ -22,16 +37,26 @@ export interface MessageNotificationPayload {
   conversationId: string;
 }
 
+export interface OrderNotificationPayload {
+  recipientId: string;
+  sender: {
+    id: string;
+    email: string;
+  };
+  product: {
+    id: string;
+    title: string;
+  };
+  orderId: string;
+}
+
 interface NotificationBuilderResult {
   recipientId: string;
   senderId: string;
   type: NotificationType;
   title: string;
   body: string;
-  metadata: {
-    conversationId: string;
-    productId: string;
-  };
+  metadata: Record<string, string>;
 }
 
 type NotificationRecord = NonNullable<
@@ -41,6 +66,11 @@ type NotificationRecord = NonNullable<
     >
   >
 >;
+
+const shouldSkipNotification = (
+  senderId: string,
+  recipientId: string
+) => senderId === recipientId;
 
 const buildMessageNotification = (
   payload: MessageNotificationPayload
@@ -56,6 +86,63 @@ const buildMessageNotification = (
     ),
     metadata: {
       conversationId: payload.conversationId,
+      productId: payload.product.id,
+    },
+  };
+};
+
+const buildOrderCreatedNotification = (
+  payload: OrderNotificationPayload
+): NotificationBuilderResult => {
+  return {
+    recipientId: payload.recipientId,
+    senderId: payload.sender.id,
+    type: NotificationType.ORDER,
+    title: ORDER_CREATED_NOTIFICATION_TITLE,
+    body: buildOrderCreatedBody(
+      payload.sender.email,
+      payload.product.title
+    ),
+    metadata: {
+      orderId: payload.orderId,
+      productId: payload.product.id,
+    },
+  };
+};
+
+const buildOrderAcceptedNotification = (
+  payload: OrderNotificationPayload
+): NotificationBuilderResult => {
+  return {
+    recipientId: payload.recipientId,
+    senderId: payload.sender.id,
+    type: NotificationType.ORDER,
+    title: ORDER_ACCEPTED_NOTIFICATION_TITLE,
+    body: buildOrderAcceptedBody(
+      payload.sender.email,
+      payload.product.title
+    ),
+    metadata: {
+      orderId: payload.orderId,
+      productId: payload.product.id,
+    },
+  };
+};
+
+const buildOrderRejectedNotification = (
+  payload: OrderNotificationPayload
+): NotificationBuilderResult => {
+  return {
+    recipientId: payload.recipientId,
+    senderId: payload.sender.id,
+    type: NotificationType.ORDER,
+    title: ORDER_REJECTED_NOTIFICATION_TITLE,
+    body: buildOrderRejectedBody(
+      payload.sender.email,
+      payload.product.title
+    ),
+    metadata: {
+      orderId: payload.orderId,
       productId: payload.product.id,
     },
   };
@@ -96,11 +183,67 @@ const ensureRecipient = (
 export const notifyMessage = async (
   payload: MessageNotificationPayload
 ): Promise<void> => {
-  if (payload.sender.id === payload.recipientId) {
+  if (
+    shouldSkipNotification(
+      payload.sender.id,
+      payload.recipientId
+    )
+  ) {
     return;
   }
 
   const notification = buildMessageNotification(payload);
+
+  await safeCreateNotification(notification);
+};
+
+export const notifyOrderCreated = async (
+  payload: OrderNotificationPayload
+): Promise<void> => {
+  if (
+    shouldSkipNotification(
+      payload.sender.id,
+      payload.recipientId
+    )
+  ) {
+    return;
+  }
+
+  const notification = buildOrderCreatedNotification(payload);
+
+  await safeCreateNotification(notification);
+};
+
+export const notifyOrderAccepted = async (
+  payload: OrderNotificationPayload
+): Promise<void> => {
+  if (
+    shouldSkipNotification(
+      payload.sender.id,
+      payload.recipientId
+    )
+  ) {
+    return;
+  }
+
+  const notification = buildOrderAcceptedNotification(payload);
+
+  await safeCreateNotification(notification);
+};
+
+export const notifyOrderRejected = async (
+  payload: OrderNotificationPayload
+): Promise<void> => {
+  if (
+    shouldSkipNotification(
+      payload.sender.id,
+      payload.recipientId
+    )
+  ) {
+    return;
+  }
+
+  const notification = buildOrderRejectedNotification(payload);
 
   await safeCreateNotification(notification);
 };

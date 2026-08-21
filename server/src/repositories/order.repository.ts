@@ -47,6 +47,25 @@ export const findOrderById = (
   });
 };
 
+export const findActiveOrderByBuyerAndProduct = (
+  buyerId: string,
+  productId: string
+) => {
+  return prisma.order.findFirst({
+    where: {
+      buyerId,
+      productId,
+      status: {
+        in: [
+          OrderStatus.PENDING,
+          OrderStatus.ACCEPTED,
+        ],
+      },
+    },
+    select: orderSelect,
+  });
+};
+
 export const findOrdersByBuyer = (
   buyerId: string,
   take = 20
