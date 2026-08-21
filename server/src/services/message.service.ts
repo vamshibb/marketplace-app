@@ -2,6 +2,7 @@ import { AppError } from "../errors/AppError";
 import { toMessageDTO } from "../dto/message.dto";
 import * as conversationRepository from "../repositories/conversation.repository";
 import * as messageRepository from "../repositories/message.repository";
+import * as notificationService from "./notification.service";
 
 const ensureConversationExists = async (
   conversationId: string
@@ -63,6 +64,19 @@ export const sendMessage = async (
   const sender = conversation.participants.find(
     (participant) => participant.userId === senderId
   )!.user;
+
+  const recipient = conversation.participants.find(
+    (participant) => participant.userId !== senderId
+  );
+
+  if (recipient && conversation.product) {
+    await notificationService.notifyMessage({
+      recipientId: recipient.userId,
+      sender,
+      product: conversation.product,
+      conversationId,
+    });
+  }
 
   return toMessageDTO(message, sender);
 };
