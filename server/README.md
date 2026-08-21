@@ -2,9 +2,11 @@
 
 Marketplace Backend is an enterprise-grade REST API built to demonstrate production-quality backend engineering practices. The project emphasizes clean architecture, scalability, maintainability, security, performance, and developer experience.
 
-## Architecture
+---
 
-The application uses a layered architecture with clear boundaries between HTTP handling, business logic, and data access:
+# Architecture
+
+The application uses a layered architecture with clear boundaries between HTTP handling, business logic, and data access.
 
 ```text
 HTTP Request
@@ -22,6 +24,8 @@ Prisma
 PostgreSQL
 ```
 
+Every business module follows this architecture to ensure consistency, maintainability, and predictable code organization across the application.
+
 | Layer | Responsibility |
 | --- | --- |
 | Route | Defines endpoints and applies middleware. |
@@ -31,7 +35,9 @@ PostgreSQL
 | Prisma | Provides type-safe database access and schema management. |
 | PostgreSQL | Stores application data persistently. |
 
-## Tech Stack
+---
+
+# Tech Stack
 
 | Area | Technologies |
 | --- | --- |
@@ -40,41 +46,66 @@ PostgreSQL
 | Authentication | JWT |
 | Validation | Zod |
 | Storage | Azure Blob Storage |
+| API Style | REST |
+| Architecture | Repository Pattern, Layered Architecture, DTO Mapping |
 
-## Features
+---
 
-### Authentication
+# Features
+
+## Authentication
 
 - User registration
 - Login
 - JWT authentication
 
-### Marketplace
+## Marketplace
 
 - Product CRUD
 - Categories
 - Favorites
 - Reviews
 - Product media
+- Azure Blob Storage integration
 
-### Search and Discovery
+## Search & Discovery
 
 - Keyword search
 - Filtering
 - Sorting
 - Pagination
+- Query validation
 
-### Architecture and Platform
+## Messaging
+
+- Product-based conversations
+- Direct messaging
+- Conversation management
+- Conversation authorization
+- Message authorization
+
+## Notifications
+
+- In-app notifications
+- Automatic message notifications
+- Unread notification count
+- Mark notification as read
+- Mark all notifications as read
+
+## Architecture & Platform
 
 - Repository pattern
 - Thin controllers
 - Service layer
+- DTO mapping
 - Generic API responses
-- Unified validation
+- Unified validation middleware
 - Route parameter validation
 - Centralized environment configuration
 
-## Project Structure
+---
+
+# Project Structure
 
 ```text
 src/
@@ -111,23 +142,25 @@ src/
 | `utils/` | Reusable utilities and response helpers. |
 | `validators/` | Zod schemas for request validation. |
 
-## Getting Started
+---
 
-### Prerequisites
+# Getting Started
+
+## Prerequisites
 
 - Node.js
 - PostgreSQL
-- An Azure Storage account for product media
+- Azure Storage account (for product media)
 
-### Installation
+## Installation
 
 ```bash
 npm install
 ```
 
-### Environment Variables
+## Environment Variables
 
-Create a `.env` file in the project root and provide the required values:
+Create a `.env` file in the project root.
 
 ```env
 DATABASE_URL=
@@ -135,57 +168,82 @@ JWT_SECRET=
 AZURE_STORAGE_CONNECTION_STRING=
 ```
 
-### Run in Development
+## Run in Development
 
 ```bash
 npm run dev
 ```
 
-### Build
+## Build
 
 ```bash
 npm run build
 ```
 
-## API Overview
+---
 
-The API is organized into focused modules for:
+# API Overview
+
+The API is organized into focused modules.
 
 - Authentication
 - Products
 - Categories
 - Reviews
 - Favorites
-- Product media
-
-Each module follows the same route, controller, service, and repository flow to keep behavior consistent and maintainable.
-
-## Engineering Principles
-
-- **Thin controllers:** Controllers focus exclusively on HTTP concerns.
-- **Business logic in services:** Services own workflows, authorization, and business rules.
-- **Repository pattern:** Repositories are the only application layer that accesses Prisma.
-- **DTOs:** API responses use deliberate public shapes instead of exposing database models directly.
-- **Global error handling:** Application errors are processed consistently by centralized middleware.
-- **Shared validation middleware:** Reusable Zod-based validation covers request bodies, parameters, and queries.
-
-## Documentation
-
-Additional project documentation is available at the project root:
-
-- [`ROADMAP.md`](ROADMAP.md) outlines completed milestones, active work, and planned improvements.
-- [`AI_CONTEXT.md`](AI_CONTEXT.md) documents the architecture, conventions, and implementation rules.
-- [`CHANGELOG.md`](CHANGELOG.md) records notable project changes over time.
-
-## Upcoming Features
-
-Planned work is tracked in [`ROADMAP.md`](ROADMAP.md) and currently includes:
-
-- Messaging
+- Product Media
+- Conversations
+- Messages
 - Notifications
+
+Every module follows the same:
+
+- Route
+- Controller
+- Service
+- Repository
+- DTO
+- Validation
+
+architecture to keep the codebase consistent, maintainable, and scalable.
+
+---
+
+# Engineering Principles
+
+- **Thin Controllers** — Controllers focus exclusively on HTTP concerns.
+- **Business Logic in Services** — Services own workflows, authorization, and business rules.
+- **Repository Pattern** — Repositories are the only application layer that accesses Prisma.
+- **DTO Mapping** — Public API responses are isolated from database models.
+- **Global Error Handling** — Application errors are processed consistently through centralized middleware.
+- **Shared Validation Middleware** — Reusable Zod-based validation supports request bodies, route parameters, and query parameters.
+- **Module Consistency** — Every feature follows the same layered architecture and engineering conventions.
+
+---
+
+# Documentation
+
+Additional project documentation is available at the project root.
+
+- [`ROADMAP.md`](ROADMAP.md) — Project roadmap, completed milestones, and upcoming work.
+- [`CHANGELOG.md`](CHANGELOG.md) — Project release history and notable changes.
+- [`AI_CONTEXT.md`](AI_CONTEXT.md) — Architecture decisions, implementation guidelines, and development conventions.
+
+---
+
+# Upcoming Features
+
+Current roadmap includes:
+
+- Orders
 - Administration
 - Performance improvements
+- Testing & DevOps
 
-## License
+See [`ROADMAP.md`](ROADMAP.md) for the complete roadmap.
+
+---
+
+# License
 
 This project is licensed under the MIT License.

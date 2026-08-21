@@ -86,26 +86,106 @@
 
 ---
 
+# Sprint 4 – Messaging
+
+## Added
+
+- Conversation management
+- Conversation participants
+- Product-based conversations
+- Message management
+- Conversation authorization
+- DTO layer for messaging
+- Shared validation middleware supporting body, params and query
+- Conversation and message validators
+- RESTful messaging endpoints
+
+## Changed
+
+- Introduced reusable DTO mapping
+- Improved API contract isolation from Prisma models
+- Enhanced validation middleware with Zod error details
+- Standardized messaging API responses
+
+## Security
+
+- Participant authorization for conversations
+- Participant authorization for messages
+- Ownership validation
+- Input validation for conversations and messages
+
+## Testing
+
+- End-to-end API testing completed
+- Authorization testing completed
+- Validation testing completed
+- Regression testing completed
+
+---
+
+# Sprint 5 – Notifications
+
+## Added
+
+- Notification module
+- Notification repository layer
+- Notification service layer
+- Notification controllers
+- Notification routes
+- Notification DTO layer
+- Notification validation
+- Notification REST API
+- Unread notification count
+- Mark notification as read
+- Mark all notifications as read
+- Automatic message notifications
+- Notification metadata support
+
+## Changed
+
+- Messaging now automatically creates notifications after successful message delivery
+- Notification responses now use DTOs instead of Prisma models
+
+## Security
+
+- Recipient authorization
+- Notification ownership validation
+
+## Testing
+
+- Notification API testing completed
+- Authorization testing completed
+- Validation testing completed
+- Messaging integration testing completed
+- End-to-end regression testing completed
+
+---
+
 # Upcoming
 
-## Sprint 4
+## Sprint 6 – Orders
 
-- Messaging
-- Conversations
-- Attachments
+- Order lifecycle
+- Buyer order history
+- Seller order management
+- Order status transitions
+- Order notifications
 
-## Sprint 5
+## Sprint 7 – Administration
 
-- Notifications
+- Admin dashboard
+- User management
+- Product moderation
 
-## Sprint 6
+## Sprint 8 – Performance
 
-- Administration
+- Redis caching
+- Query optimization
+- Rate limiting
 
-## Sprint 7
+## Sprint 9 – Testing & DevOps
 
-- Performance
-
-## Sprint 8
-
-- Testing & DevOps
+- CI/CD
+- Docker improvements
+- Monitoring
+- Production deployment
