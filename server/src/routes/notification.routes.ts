@@ -2,6 +2,8 @@ import { Router } from "express";
 
 import * as notificationController from "../controllers/notification.controller";
 import { authMiddleware } from "../middleware/authMiddleware";
+import { validate } from "../middleware/validationMiddleware";
+import { markNotificationAsReadParamsSchema } from "../validators/notification.validator";
 
 const router = Router();
 
@@ -26,6 +28,7 @@ router.patch(
 router.patch(
   "/notifications/:notificationId/read",
   authMiddleware,
+  validate(markNotificationAsReadParamsSchema, "params"),
   notificationController.markAsRead
 );
 
