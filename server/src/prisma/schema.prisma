@@ -12,6 +12,14 @@ enum MediaType {
   VIDEO
 }
 
+enum NotificationType {
+  MESSAGE
+  REVIEW
+  FAVORITE
+  ORDER
+  SYSTEM
+}
+
 model User {
   id                       String                    @id @default(cuid())
   email                    String                    @unique
@@ -23,6 +31,8 @@ model User {
   reviews                  Review[]
   conversationParticipants ConversationParticipant[]
   sentMessages             Message[]
+  receivedNotifications    Notification[]            @relation("NotificationRecipient")
+  sentNotifications        Notification[]            @relation("NotificationSender")
 }
 
 model Category {
@@ -157,4 +167,24 @@ model Message {
   @@index([conversationId])
   @@index([senderId])
   @@index([createdAt])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  senderId    String?
+  type        NotificationType
+  title       String
+  body        String?
+  metadata    Json?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  recipient User  @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender    User? @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([recipientId, isRead])
+@@index([recipientId, createdAt(sort: Desc)])
 }
