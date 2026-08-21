@@ -19,6 +19,8 @@ import conversationRoutes
   from "./routes/conversation.routes";
 import messageRoutes
   from "./routes/message.routes";
+import notificationRoutes
+  from "./routes/notification.routes";
 
 const app = express();
 
@@ -51,6 +53,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/products", productMediaRoutes);
 app.use("/api", conversationRoutes);
 app.use("/api", messageRoutes);
+app.use("/api", notificationRoutes);
 app.use(errorMiddleware);
 
 app.listen(env.PORT, () => {
