@@ -2,6 +2,7 @@ import {
   OrderStatus,
   Prisma,
 } from "../generated/prisma";
+import { toOrderDTO } from "../dto/order.dto";
 import { AppError } from "../errors/AppError";
 import * as authRepository from "../repositories/auth.repository";
 import * as orderRepository from "../repositories/order.repository";
@@ -160,7 +161,7 @@ export const createOrder = async (
     console.error("Failed to create order notification", error);
   }
 
-  return order;
+  return toOrderDTO(order);
 };
 
 export const acceptOrder = async (
@@ -193,7 +194,7 @@ export const acceptOrder = async (
     );
   }
 
-  return updatedOrder;
+  return toOrderDTO(updatedOrder);
 };
 
 export const rejectOrder = async (
@@ -226,7 +227,7 @@ export const rejectOrder = async (
     );
   }
 
-  return updatedOrder;
+  return toOrderDTO(updatedOrder);
 };
 
 export const cancelOrder = async (
@@ -238,22 +239,28 @@ export const cancelOrder = async (
   ensureBuyer(order, buyerId);
   ensurePendingOrder(order);
 
-  return orderRepository.updateOrderStatus(
+  const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
     OrderStatus.CANCELLED
   );
+
+  return toOrderDTO(updatedOrder);
 };
 
-export const getBuyerOrders = (
+export const getBuyerOrders = async (
   buyerId: string
 ) => {
-  return orderRepository.findOrdersByBuyer(buyerId);
+  const orders = await orderRepository.findOrdersByBuyer(buyerId);
+
+  return orders.map(toOrderDTO);
 };
 
-export const getSellerOrders = (
+export const getSellerOrders = async (
   sellerId: string
 ) => {
-  return orderRepository.findOrdersBySeller(sellerId);
+  const orders = await orderRepository.findOrdersBySeller(sellerId);
+
+  return orders.map(toOrderDTO);
 };
 
 export const getOrder = async (
@@ -269,5 +276,5 @@ export const getOrder = async (
     throw new AppError("Forbidden", 403);
   }
 
-  return order;
+  return toOrderDTO(order);
 };
