@@ -1,4 +1,5 @@
 import { NotificationType } from "../generated/prisma";
+import { toNotificationDTO } from "../dto/notification.dto";
 import { AppError } from "../errors/AppError";
 import * as notificationRepository from "../repositories/notification.repository";
 
@@ -104,10 +105,13 @@ export const notifyMessage = async (
   await safeCreateNotification(notification);
 };
 
-export const getNotifications = (
+export const getNotifications = async (
   userId: string
 ) => {
-  return notificationRepository.findUserNotifications(userId);
+  const notifications =
+    await notificationRepository.findUserNotifications(userId);
+
+  return notifications.map(toNotificationDTO);
 };
 
 export const getUnreadCount = (
@@ -126,9 +130,12 @@ export const markAsRead = async (
 
   ensureRecipient(notification, userId);
 
-  return notificationRepository.markNotificationAsRead(
-    notificationId
-  );
+  const updatedNotification =
+    await notificationRepository.markNotificationAsRead(
+      notificationId
+    );
+
+  return toNotificationDTO(updatedNotification);
 };
 
 export const markAllAsRead = (

@@ -9,13 +9,18 @@ export const findNotificationById = (
     select: {
       id: true,
       recipientId: true,
-      senderId: true,
       type: true,
       title: true,
       body: true,
       metadata: true,
       isRead: true,
       createdAt: true,
+      sender: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
     },
   });
 };
@@ -28,14 +33,18 @@ export const findUserNotifications = (
     where: { recipientId },
     select: {
       id: true,
-      recipientId: true,
-      senderId: true,
       type: true,
       title: true,
       body: true,
       metadata: true,
       isRead: true,
       createdAt: true,
+      sender: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",
@@ -69,6 +78,21 @@ export const markNotificationAsRead = (
   return prisma.notification.update({
     where: { id },
     data: { isRead: true },
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      body: true,
+      metadata: true,
+      isRead: true,
+      createdAt: true,
+      sender: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
+    },
   });
 };
 
