@@ -1,26 +1,30 @@
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
+const notificationSelect = {
+  id: true,
+  type: true,
+  title: true,
+  body: true,
+  metadata: true,
+  isRead: true,
+  createdAt: true,
+  sender: {
+    select: {
+      id: true,
+      email: true,
+    },
+  },
+} satisfies Prisma.NotificationSelect;
+
 export const findNotificationById = (
   id: string
 ) => {
   return prisma.notification.findUnique({
     where: { id },
     select: {
-      id: true,
+      ...notificationSelect,
       recipientId: true,
-      type: true,
-      title: true,
-      body: true,
-      metadata: true,
-      isRead: true,
-      createdAt: true,
-      sender: {
-        select: {
-          id: true,
-          email: true,
-        },
-      },
     },
   });
 };
@@ -31,21 +35,7 @@ export const findUserNotifications = (
 ) => {
   return prisma.notification.findMany({
     where: { recipientId },
-    select: {
-      id: true,
-      type: true,
-      title: true,
-      body: true,
-      metadata: true,
-      isRead: true,
-      createdAt: true,
-      sender: {
-        select: {
-          id: true,
-          email: true,
-        },
-      },
-    },
+    select: notificationSelect,
     orderBy: {
       createdAt: "desc",
     },
@@ -78,21 +68,7 @@ export const markNotificationAsRead = (
   return prisma.notification.update({
     where: { id },
     data: { isRead: true },
-    select: {
-      id: true,
-      type: true,
-      title: true,
-      body: true,
-      metadata: true,
-      isRead: true,
-      createdAt: true,
-      sender: {
-        select: {
-          id: true,
-          email: true,
-        },
-      },
-    },
+    select: notificationSelect,
   });
 };
 

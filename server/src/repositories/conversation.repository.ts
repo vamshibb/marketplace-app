@@ -1,29 +1,31 @@
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
+const conversationInclude = {
+  product: {
+    select: {
+      id: true,
+      title: true,
+    },
+  },
+  participants: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.ConversationInclude;
+
 export const findConversationById = (
   id: string
 ) => {
   return prisma.conversation.findUnique({
     where: { id },
-    include: {
-      product: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-      participants: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-            },
-          },
-        },
-      },
-    },
+    include: conversationInclude,
   });
 };
 
@@ -47,17 +49,7 @@ export const findConversationByProductAndUsers = (
         },
       },
     },
-    include: {
-      participants: true,
-    },
-  });
-};
-
-export const createConversation = (
-  data: Prisma.ConversationUncheckedCreateInput
-) => {
-  return prisma.conversation.create({
-    data,
+    include: conversationInclude,
   });
 };
 
@@ -80,24 +72,7 @@ export const createConversationAndParticipants = (
 
     return transaction.conversation.findUnique({
       where: { id: conversation.id },
-      include: {
-        product: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-              },
-            },
-          },
-        },
-      },
+      include: conversationInclude,
     });
   });
 };
@@ -112,22 +87,7 @@ export const findUserConversations = (
       },
     },
     include: {
-      product: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-      participants: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-            },
-          },
-        },
-      },
+      ...conversationInclude,
       messages: {
         orderBy: {
           createdAt: "desc",
@@ -138,53 +98,5 @@ export const findUserConversations = (
     orderBy: {
       lastMessageAt: "desc",
     },
-  });
-};
-
-export const findConversationParticipants = (
-  conversationId: string
-) => {
-  return prisma.conversationParticipant.findMany({
-    where: { conversationId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-        },
-      },
-    },
-  });
-};
-
-export const findConversationParticipant = (
-  conversationId: string,
-  userId: string
-) => {
-  return prisma.conversationParticipant.findUnique({
-    where: {
-      conversationId_userId: {
-        conversationId,
-        userId,
-      },
-    },
-  });
-};
-
-export const createParticipants = (
-  data: Prisma.ConversationParticipantCreateManyInput[]
-) => {
-  return prisma.conversationParticipant.createManyAndReturn({
-    data,
-  });
-};
-
-export const updateLastMessageAt = (
-  conversationId: string,
-  lastMessageAt: Date
-) => {
-  return prisma.conversation.update({
-    where: { id: conversationId },
-    data: { lastMessageAt },
   });
 };

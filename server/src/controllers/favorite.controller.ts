@@ -11,7 +11,6 @@ import * as favoriteService
 
 import { successResponse }
   from "../utils/apiResponse";
-import { AppError } from "../errors/AppError";
 
 export const addFavorite = async (
   req: AuthRequest,
@@ -31,16 +30,7 @@ export const addFavorite = async (
         "Added to favorites"
       )
     );
-  } catch (error: any) {
-    if (error.code === "P2002") {
-      return next(
-        new AppError(
-          "Product already in favorites",
-          409
-        )
-      );
-    }
-
+  } catch (error) {
     next(error);
   }
 };

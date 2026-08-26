@@ -1,4 +1,5 @@
 import * as categoryRepository from "../repositories/category.repository";
+import { AppError } from "../errors/AppError";
 
 type CategoryTreeNode = {
   id: string;
@@ -19,13 +20,34 @@ export const getAllCategories = () => {
   return categoryRepository.findAllCategories();
 };
 
-export const getCategoryById = (id: string) => {
-  return categoryRepository.findCategoryById(id);
+export const ensureCategoryExistsById = async (
+  id: string,
+  statusCode = 404
+) => {
+  const category = await categoryRepository.findCategoryById(id);
+
+  if (!category) {
+    throw new AppError("Category not found", statusCode);
+  }
+
+  return category;
 };
 
-export const getCategoryBySlug = (slug: string) => {
-  return categoryRepository.findCategoryBySlug(slug);
+export const ensureCategoryExistsBySlug = async (
+  slug: string
+) => {
+  const category = await categoryRepository.findCategoryBySlug(slug);
+
+  if (!category) {
+    throw new AppError("Category not found", 404);
+  }
+
+  return category;
 };
+
+export const getCategoryById = ensureCategoryExistsById;
+
+export const getCategoryBySlug = ensureCategoryExistsBySlug;
 
 export const createCategory = (data: {
   name: string;
@@ -46,12 +68,6 @@ export const updateCategory = (
 
 export const deleteCategory = (id: string) => {
   return categoryRepository.deleteCategory(id);
-};
-
-export const categoryExists = (
-  id: string
-) => {
-  return categoryRepository.categoryExists(id);
 };
 
 export const getCategoryTree = async () => {

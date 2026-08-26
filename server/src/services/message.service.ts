@@ -32,7 +32,10 @@ const ensureParticipant = async (
       (participant) => participant.userId === userId
     )
   ) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not a participant in this conversation.",
+      403
+    );
   }
 
   return conversation;

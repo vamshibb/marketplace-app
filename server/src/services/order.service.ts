@@ -51,7 +51,10 @@ const ensureBuyer = (
   userId: string
 ) => {
   if (order.buyerId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not authorized to perform this action.",
+      403
+    );
   }
 };
 
@@ -60,15 +63,22 @@ const ensureSeller = (
   userId: string
 ) => {
   if (order.sellerId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not authorized to perform this action.",
+      403
+    );
   }
 };
 
 const ensurePendingOrder = (
-  order: OrderRecord
+  order: OrderRecord,
+  action: "accepted" | "rejected" | "cancelled"
 ) => {
   if (order.status !== OrderStatus.PENDING) {
-    throw new AppError("Order is not pending", 400);
+    throw new AppError(
+      `Only pending orders can be ${action}.`,
+      409
+    );
   }
 };
 
@@ -147,19 +157,15 @@ export const createOrder = async (
 
   const order = await orderRepository.createOrder(orderData);
 
-  try {
-    await notificationService.notifyOrderCreated({
-      recipientId: product.sellerId,
-      sender: buyer,
-      product: {
-        id: product.id,
-        title: product.title,
-      },
-      orderId: order.id,
-    });
-  } catch (error) {
-    console.error("Failed to create order notification", error);
-  }
+  await notificationService.notifyOrderCreated({
+    recipientId: product.sellerId,
+    sender: buyer,
+    product: {
+      id: product.id,
+      title: product.title,
+    },
+    orderId: order.id,
+  });
 
   return toOrderDTO(order);
 };
@@ -171,7 +177,7 @@ export const acceptOrder = async (
   const order = await ensureOrderExists(orderId);
 
   ensureSeller(order, sellerId);
-  ensurePendingOrder(order);
+  ensurePendingOrder(order, "accepted");
 
   const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
@@ -180,19 +186,12 @@ export const acceptOrder = async (
 
   const seller = await ensureUserExists(sellerId);
 
-  try {
-    await notificationService.notifyOrderAccepted({
-      recipientId: order.buyerId,
-      sender: seller,
-      product: order.product,
-      orderId: order.id,
-    });
-  } catch (error) {
-    console.error(
-      "Failed to create order accepted notification",
-      error
-    );
-  }
+  await notificationService.notifyOrderAccepted({
+    recipientId: order.buyerId,
+    sender: seller,
+    product: order.product,
+    orderId: order.id,
+  });
 
   return toOrderDTO(updatedOrder);
 };
@@ -204,7 +203,7 @@ export const rejectOrder = async (
   const order = await ensureOrderExists(orderId);
 
   ensureSeller(order, sellerId);
-  ensurePendingOrder(order);
+  ensurePendingOrder(order, "rejected");
 
   const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
@@ -213,19 +212,12 @@ export const rejectOrder = async (
 
   const seller = await ensureUserExists(sellerId);
 
-  try {
-    await notificationService.notifyOrderRejected({
-      recipientId: order.buyerId,
-      sender: seller,
-      product: order.product,
-      orderId: order.id,
-    });
-  } catch (error) {
-    console.error(
-      "Failed to create order rejected notification",
-      error
-    );
-  }
+  await notificationService.notifyOrderRejected({
+    recipientId: order.buyerId,
+    sender: seller,
+    product: order.product,
+    orderId: order.id,
+  });
 
   return toOrderDTO(updatedOrder);
 };
@@ -237,7 +229,7 @@ export const cancelOrder = async (
   const order = await ensureOrderExists(orderId);
 
   ensureBuyer(order, buyerId);
-  ensurePendingOrder(order);
+  ensurePendingOrder(order, "cancelled");
 
   const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
@@ -273,7 +265,10 @@ export const getOrder = async (
     order.buyerId !== userId &&
     order.sellerId !== userId
   ) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not authorized to perform this action.",
+      403
+    );
   }
 
   return toOrderDTO(order);

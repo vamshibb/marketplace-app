@@ -5,6 +5,7 @@ import {
 import { toProductMediaDto } from "../dto/productMedia.dto";
 import { AppError } from "../errors/AppError";
 import * as productRepository from "../repositories/product.repository";
+import * as categoryService from "./category.service";
 
 const withMediaDto = <T extends { media: ProductMedia[] }>(
   product: T
@@ -32,7 +33,10 @@ const validateProductOwnership = async (
   const product = await findProductOrThrow(id);
 
   if (product.sellerId !== userId) {
-    throw new AppError("Not authorized", 403);
+    throw new AppError(
+      "You are not authorized to modify this product.",
+      403
+    );
   }
 };
 
@@ -73,9 +77,13 @@ export const findProductById = async (
   };
 };
 
-export const createProduct = (
+export const createProduct = async (
   data: Prisma.ProductUncheckedCreateInput
 ) => {
+  if (typeof data.categoryId === "string") {
+    await categoryService.ensureCategoryExistsById(data.categoryId, 400);
+  }
+
   return productRepository.createProduct(data);
 };
 

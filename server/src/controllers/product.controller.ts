@@ -1,12 +1,10 @@
 import { NextFunction, Request, Response, } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
-import { AppError } from "../errors/AppError";
 import * as productService
   from "../services/product.service";
 import { successResponse } from "../utils/apiResponse";
 import { buildPagination } from "../utils/pagination";
 import "multer";
-import * as categoryService from "../services/category.service";
 
 export const createProduct = async (
   req: AuthRequest,
@@ -21,21 +19,6 @@ export const createProduct = async (
       price,
       categoryId,
     } = req.body;
-
-    if (categoryId) {
-      const exists =
-        await categoryService.categoryExists(
-          categoryId
-        );
-
-      if (!exists) {
-        throw new AppError(
-          "Category not found",
-          400
-        );
-      }
-    }
-
 
     const product =
       await productService.createProduct({

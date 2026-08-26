@@ -1,13 +1,24 @@
 import * as favoriteRepository from "../repositories/favorite.repository";
+import { AppError } from "../errors/AppError";
 
-export const addFavorite = (
+export const addFavorite = async (
   userId: string,
   productId: string
 ) => {
-  return favoriteRepository.addFavorite(
-    userId,
-    productId
-  );
+  try {
+    return await favoriteRepository.addFavorite(userId, productId);
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      throw new AppError("Product already in favorites", 409);
+    }
+
+    throw error;
+  }
 };
 
 export const removeFavorite = (

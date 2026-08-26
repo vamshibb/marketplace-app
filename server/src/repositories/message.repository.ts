@@ -1,14 +1,6 @@
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
-export const createMessage = (
-  data: Prisma.MessageUncheckedCreateInput
-) => {
-  return prisma.message.create({
-    data,
-  });
-};
-
 export const createMessageAndUpdateLastMessageAt = (
   data: Prisma.MessageUncheckedCreateInput
 ) => {
@@ -34,21 +26,5 @@ export const findMessagesByConversation = (
     orderBy: {
       createdAt: "asc",
     },
-  });
-};
-
-export const findMessageById = (
-  id: string
-) => {
-  return prisma.message.findUnique({
-    where: { id },
-  });
-};
-
-export const countMessages = (
-  conversationId: string
-) => {
-  return prisma.message.count({
-    where: { conversationId },
   });
 };

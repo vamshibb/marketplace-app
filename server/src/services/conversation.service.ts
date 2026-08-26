@@ -26,7 +26,10 @@ const ensureParticipant = (
   userId: string
 ) => {
   if (!participants.some((participant) => participant.userId === userId)) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not a participant in this conversation.",
+      403
+    );
   }
 };
 
@@ -64,11 +67,7 @@ export const createConversation = async (
     );
 
   if (existingConversation) {
-    const conversation = await ensureConversationExists(
-      existingConversation.id
-    );
-
-    return toConversationDTO(conversation);
+    return toConversationDTO(existingConversation);
   }
 
   const conversation =

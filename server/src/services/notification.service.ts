@@ -176,7 +176,10 @@ const ensureRecipient = (
   userId: string
 ) => {
   if (notification.recipientId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not authorized to access this notification.",
+      403
+    );
   }
 };
 

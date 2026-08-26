@@ -9,7 +9,10 @@ const validateReviewOwnership = async (
   const review = await getReviewById(id);
 
   if (review.userId !== userId) {
-    throw new AppError("Not authorized", 403);
+    throw new AppError(
+      "You are not authorized to modify this review.",
+      403
+    );
   }
 };
 

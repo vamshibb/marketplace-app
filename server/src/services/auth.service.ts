@@ -39,7 +39,7 @@ export const register = async (
   const existingUser = await authRepository.findUserByEmail(email);
 
   if (existingUser) {
-    throw new AppError("User already exists", 400);
+    throw new AppError("User already exists", 409);
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -58,7 +58,7 @@ export const login = async (
   const user = await authRepository.findUserByEmail(email);
 
   if (!user) {
-    throw new AppError("Invalid credentials", 400);
+    throw new AppError("Invalid credentials", 401);
   }
 
   const validPassword = await bcrypt.compare(
@@ -67,7 +67,7 @@ export const login = async (
   );
 
   if (!validPassword) {
-    throw new AppError("Invalid credentials", 400);
+    throw new AppError("Invalid credentials", 401);
   }
 
   return buildAuthResponse(user);

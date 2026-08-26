@@ -27,7 +27,10 @@ const validateOwnership = async (
   }
 
   if (product.sellerId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not authorized to modify this product.",
+      403
+    );
   }
 };
 
@@ -168,7 +171,10 @@ export const deleteMedia = async (
   }
 
   if (product.sellerId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError(
+      "You are not authorized to modify this product.",
+      403
+    );
   }
 
   const container = getContainerByMediaType(media.mediaType);
