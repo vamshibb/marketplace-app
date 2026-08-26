@@ -66,6 +66,7 @@ Every business module follows this architecture to ensure consistency, maintaina
 - Favorites
 - Reviews
 - Product media
+- Order management
 - Azure Blob Storage integration
 
 ## Search & Discovery
@@ -194,6 +195,7 @@ The API is organized into focused modules.
 - Product Media
 - Conversations
 - Messages
+- orders
 - Notifications
 
 Every module follows the same:
@@ -235,7 +237,6 @@ Additional project documentation is available at the project root.
 
 Current roadmap includes:
 
-- Orders
 - Administration
 - Performance improvements
 - Testing & DevOps
