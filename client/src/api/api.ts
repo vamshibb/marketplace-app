@@ -1,8 +1,9 @@
 import axios from "axios";
+import { env } from "../lib/env";
 import { useAuthStore } from "../store/authStore";
 
 const api = axios.create({
-baseURL: import.meta.env.VITE_API_URL,
+  baseURL: env.API_URL,
 });
 
 api.interceptors.request.use((config) => {
