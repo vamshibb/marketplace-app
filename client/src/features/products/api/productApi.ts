@@ -51,3 +51,7 @@ export const updateProduct = async (
 
   return response.data.data;
 };
+
+export const deleteProduct = async (id: string): Promise<void> => {
+  await api.delete(`/products/${id}`);
+};
