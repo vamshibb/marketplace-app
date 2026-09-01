@@ -1,7 +1,7 @@
 import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type {
-  CreateProductRequest,
+  ProductFormRequest,
   ProductDetail,
   ProductSummary,
 } from "../types";
@@ -30,7 +30,7 @@ export const getProduct = async (id: string): Promise<ProductDetail> => {
 };
 
 export const createProduct = async (
-  request: CreateProductRequest,
+  request: ProductFormRequest,
 ): Promise<CreatedProduct> => {
   const response = await api.post<ApiResponse<CreatedProduct>>(
     "/products",

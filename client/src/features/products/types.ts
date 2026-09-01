@@ -47,7 +47,7 @@ export interface ProductDetail extends ProductSummary {
   averageRating: number;
 }
 
-export interface CreateProductRequest {
+export interface ProductFormRequest {
   title: string;
   description: string;
   price: number;

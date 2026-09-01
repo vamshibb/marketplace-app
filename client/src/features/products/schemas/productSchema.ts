@@ -18,4 +18,4 @@ export const productSchema = z.object({
   categoryId: z.string().trim().min(1, "Category ID is required"),
 });
 
-export type CreateProductFormValues = z.infer<typeof productSchema>;
+export type ProductFormValues = z.infer<typeof productSchema>;
