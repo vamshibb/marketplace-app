@@ -46,3 +46,10 @@ export interface ProductDetail extends ProductSummary {
   reviewCount: number;
   averageRating: number;
 }
+
+export interface CreateProductRequest {
+  title: string;
+  description: string;
+  price: number;
+  categoryId: string;
+}
