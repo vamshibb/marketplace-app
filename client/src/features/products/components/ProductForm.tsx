@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import {
@@ -33,11 +34,16 @@ export const ProductForm = ({
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: initialValues,
   });
+
+  useEffect(() => {
+    reset(initialValues);
+  }, [initialValues, reset]);
 
   return (
     <>

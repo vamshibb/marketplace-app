@@ -5,6 +5,7 @@ import { RegisterPage } from "../../features/auth/pages/RegisterPage";
 import { ProductDetailPage } from "../../features/products/pages/ProductDetailPage";
 import { ProductsPage } from "../../features/products/pages/ProductsPage";
 import { CreateProductPage } from "../../features/products/pages/CreateProductPage";
+import { EditProductPage } from "../../features/products/pages/EditProductPage";
 
 const Marketplace = () => <h1>Marketplace</h1>;
 
@@ -32,5 +33,9 @@ export const router = createBrowserRouter([
   {
   path: "/products/create",
   element: <CreateProductPage />,
-}
+},
+{
+  path: "/products/:id/edit",
+  element: <EditProductPage />,
+},
 ]);

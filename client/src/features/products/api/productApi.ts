@@ -39,3 +39,15 @@ export const createProduct = async (
 
   return response.data.data;
 };
+
+export const updateProduct = async (
+  id: string,
+  request: ProductFormRequest,
+): Promise<CreatedProduct> => {
+  const response = await api.put<ApiResponse<CreatedProduct>>(
+    `/products/${id}`,
+    request,
+  );
+
+  return response.data.data;
+};
