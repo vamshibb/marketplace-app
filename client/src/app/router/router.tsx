@@ -7,6 +7,7 @@ import { ProductsPage } from "../../features/products/pages/ProductsPage";
 import { CreateProductPage } from "../../features/products/pages/CreateProductPage";
 import { EditProductPage } from "../../features/products/pages/EditProductPage";
 import { HomePage } from "../../features/home/page/HomePage";
+import { AppLayout } from "../layouts/AppLayout";
 import { GuestRoute } from "./GuestRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -32,20 +33,25 @@ export const router = createBrowserRouter([
     element: <ProtectedRoute />,
     children: [
       {
-        path: "/products",
-        element: <ProductsPage />,
-      },
-      {
-        path: "/products/create",
-        element: <CreateProductPage />,
-      },
-      {
-        path: "/products/:id",
-        element: <ProductDetailPage />,
-      },
-      {
-        path: "/products/:id/edit",
-        element: <EditProductPage />,
+        element: <AppLayout />,
+        children: [
+          {
+            path: "/products",
+            element: <ProductsPage />,
+          },
+          {
+            path: "/products/create",
+            element: <CreateProductPage />,
+          },
+          {
+            path: "/products/:id",
+            element: <ProductDetailPage />,
+          },
+          {
+            path: "/products/:id/edit",
+            element: <EditProductPage />,
+          },
+        ],
       },
     ],
   },
