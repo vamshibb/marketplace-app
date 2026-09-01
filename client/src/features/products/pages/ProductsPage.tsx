@@ -1,3 +1,4 @@
+import { ProductCard } from "../components/ProductCard";
 import { useProductsQuery } from "../hooks/useProductsQuery";
 
 export const ProductsPage = () => {
@@ -16,10 +17,10 @@ export const ProductsPage = () => {
   }
 
   return (
-    <main className="space-y-2">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {productsQuery.data.map((product) => (
-        <p key={product.id}>{product.title}</p>
+        <ProductCard key={product.id} product={product} />
       ))}
-    </main>
+    </div>
   );
 };
