@@ -6,13 +6,13 @@ import { ProductDetailPage } from "../../features/products/pages/ProductDetailPa
 import { ProductsPage } from "../../features/products/pages/ProductsPage";
 import { CreateProductPage } from "../../features/products/pages/CreateProductPage";
 import { EditProductPage } from "../../features/products/pages/EditProductPage";
+import { HomePage } from "../../features/home/page/HomePage";
 
-const Marketplace = () => <h1>Marketplace</h1>;
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Marketplace />,
+    element: <HomePage />,
   },
   {
     path: "/login",
