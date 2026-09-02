@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
+import { Button } from "../../../shared/ui/Button";
 import { useLoginMutation } from "../hooks/useLoginMutation";
 import {
   loginSchema,
@@ -90,14 +91,9 @@ export const LoginPage = () => {
           )}
         </div>
 
-        <button
-          type="submit"
-          disabled={loginMutation.isPending}
-        >
-          {loginMutation.isPending
-            ? "Signing in..."
-            : "Sign In"}
-        </button>
+        <Button type="submit" isLoading={loginMutation.isPending}>
+          Login
+        </Button>
       </form>
     </main>
   );

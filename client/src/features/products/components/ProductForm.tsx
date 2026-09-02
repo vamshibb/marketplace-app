@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
+import { Button } from "../../../shared/ui/Button";
 import {
   productSchema,
   type ProductFormValues,
@@ -28,7 +29,6 @@ export const ProductForm = ({
   onSubmit,
   isPending,
   submitLabel,
-  pendingLabel,
   errorMessage,
 }: ProductFormProps) => {
   const {
@@ -122,9 +122,9 @@ export const ProductForm = ({
           )}
         </div>
 
-        <button type="submit" disabled={isPending}>
-          {isPending ? pendingLabel : submitLabel}
-        </button>
+        <Button type="submit" isLoading={isPending}>
+          {submitLabel}
+        </Button>
       </form>
     </>
   );

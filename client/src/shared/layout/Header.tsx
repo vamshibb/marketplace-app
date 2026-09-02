@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { useCurrentUserQuery } from "../../features/auth/hooks/useCurrentUserQuery";
 import { useLogout } from "../../features/auth/hooks/useLogout";
+import { Button } from "../ui/Button";
 import { Container } from "./Container";
 
 export const Header = () => {
@@ -29,9 +30,9 @@ export const Header = () => {
             {currentUser ? (
               <>
                 <span>{currentUser.email}</span>
-                <button type="button" onClick={handleLogout}>
+                <Button variant="secondary" onClick={handleLogout}>
                   Logout
-                </button>
+                </Button>
               </>
             ) : (
               <>

@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
+import { Button } from "../../../shared/ui/Button";
 import { useRegisterMutation } from "../hooks/useRegisterMutation";
 import {
   registerSchema,
@@ -117,11 +118,9 @@ export const RegisterPage = () => {
           )}
         </div>
 
-        <button type="submit" disabled={registerMutation.isPending}>
-          {registerMutation.isPending
-            ? "Creating account..."
-            : "Create Account"}
-        </button>
+        <Button type="submit" isLoading={registerMutation.isPending}>
+          Create Account
+        </Button>
       </form>
     </main>
   );
