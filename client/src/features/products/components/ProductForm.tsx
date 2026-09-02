@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "../../../shared/ui/Button";
+import { useCategoriesQuery } from "../../categories/hooks/useCategoriesQuery";
 import {
   productSchema,
   type ProductFormValues,
@@ -31,6 +32,7 @@ export const ProductForm = ({
   submitLabel,
   errorMessage,
 }: ProductFormProps) => {
+  const categoriesQuery = useCategoriesQuery();
   const {
     register,
     handleSubmit,
@@ -105,16 +107,31 @@ export const ProductForm = ({
         </div>
 
         <div>
-          <label htmlFor="categoryId">Category ID</label>
-          <input
+          <label htmlFor="categoryId">Category</label>
+          <select
             id="categoryId"
-            type="text"
+            disabled={categoriesQuery.isPending || categoriesQuery.isError}
             aria-invalid={Boolean(errors.categoryId)}
             aria-describedby={
               errors.categoryId ? "category-id-error" : undefined
             }
             {...register("categoryId")}
-          />
+          >
+            {categoriesQuery.isPending ? (
+              <option value="">Loading categories...</option>
+            ) : categoriesQuery.isError ? (
+              <option value="">Unable to load categories</option>
+            ) : (
+              <>
+                <option value="" disabled>Select a category</option>
+                {categoriesQuery.data.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
           {errors.categoryId && (
             <p id="category-id-error" role="alert">
               {errors.categoryId.message}
