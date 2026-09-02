@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useDebounce } from "../../../shared/hooks/useDebounce";
+import { CategoryFilter } from "../components/CategoryFilter";
 import { Pagination } from "../components/Pagination";
 import { ProductCard } from "../components/ProductCard";
 import { SearchBar } from "../components/SearchBar";
@@ -12,11 +13,13 @@ export const ProductsPage = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ProductSort>("newest");
+  const [categoryId, setCategoryId] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const filters: ProductFilters = {
     search: debouncedSearch.trim() || undefined,
     page,
     sort: sort === "newest" ? undefined : sort,
+    categoryId: categoryId || undefined,
   };
   const productsQuery = useProductsQuery(filters);
 
@@ -30,12 +33,21 @@ export const ProductsPage = () => {
     setPage(1);
   };
 
+  const handleCategoryChange = (value: string): void => {
+    setCategoryId(value);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end">
         <div className="flex-1">
           <SearchBar value={search} onChange={handleSearchChange} />
         </div>
+        <CategoryFilter
+          value={categoryId}
+          onChange={handleCategoryChange}
+        />
         <SortSelect value={sort} onChange={handleSortChange} />
       </div>
 
