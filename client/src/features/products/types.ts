@@ -54,9 +54,17 @@ export interface ProductFormRequest {
   categoryId: string;
 }
 
+export type ProductSort =
+  | "newest"
+  | "oldest"
+  | "price_asc"
+  | "price_desc";
+
 export interface ProductFilters {
   search?: string;
   page?: number;
+  sort?: ProductSort;
+  categoryId?: string;
 }
 
 export interface Pagination {

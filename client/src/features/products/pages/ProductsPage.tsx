@@ -4,16 +4,19 @@ import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { Pagination } from "../components/Pagination";
 import { ProductCard } from "../components/ProductCard";
 import { SearchBar } from "../components/SearchBar";
+import { SortSelect } from "../components/SortSelect";
 import { useProductsQuery } from "../hooks/useProductsQuery";
-import type { ProductFilters } from "../types";
+import type { ProductFilters, ProductSort } from "../types";
 
 export const ProductsPage = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<ProductSort>("newest");
   const debouncedSearch = useDebounce(search, 300);
   const filters: ProductFilters = {
     search: debouncedSearch.trim() || undefined,
     page,
+    sort: sort === "newest" ? undefined : sort,
   };
   const productsQuery = useProductsQuery(filters);
 
@@ -22,9 +25,19 @@ export const ProductsPage = () => {
     setPage(1);
   };
 
+  const handleSortChange = (value: ProductSort): void => {
+    setSort(value);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-6">
-      <SearchBar value={search} onChange={handleSearchChange} />
+      <div className="flex flex-col gap-4 md:flex-row md:items-end">
+        <div className="flex-1">
+          <SearchBar value={search} onChange={handleSearchChange} />
+        </div>
+        <SortSelect value={sort} onChange={handleSortChange} />
+      </div>
 
       {productsQuery.isPending ? (
         <p>Loading...</p>
