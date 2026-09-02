@@ -53,3 +53,7 @@ export interface ProductFormRequest {
   price: number;
   categoryId: string;
 }
+
+export interface ProductFilters {
+  search?: string;
+}

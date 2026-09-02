@@ -1,6 +1,7 @@
 import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type {
+  ProductFilters,
   ProductFormRequest,
   ProductDetail,
   ProductSummary,
@@ -17,8 +18,12 @@ export interface CreatedProduct {
   updatedAt: string;
 }
 
-export const getProducts = async (): Promise<ProductSummary[]> => {
-  const response = await api.get<ApiResponse<ProductSummary[]>>("/products");
+export const getProducts = async (
+  filters: ProductFilters,
+): Promise<ProductSummary[]> => {
+  const response = await api.get<ApiResponse<ProductSummary[]>>("/products", {
+    params: filters,
+  });
 
   return response.data.data;
 };
