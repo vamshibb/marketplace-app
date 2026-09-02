@@ -1,11 +1,17 @@
 import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type {
+  Pagination,
   ProductFilters,
   ProductFormRequest,
   ProductDetail,
   ProductSummary,
+  ProductsResponse,
 } from "../types";
+
+interface ProductsApiResponse extends ApiResponse<ProductSummary[]> {
+  pagination: Pagination;
+}
 
 export interface CreatedProduct {
   id: string;
@@ -20,12 +26,15 @@ export interface CreatedProduct {
 
 export const getProducts = async (
   filters: ProductFilters,
-): Promise<ProductSummary[]> => {
-  const response = await api.get<ApiResponse<ProductSummary[]>>("/products", {
+): Promise<ProductsResponse> => {
+  const response = await api.get<ProductsApiResponse>("/products", {
     params: filters,
   });
 
-  return response.data.data;
+  return {
+    products: response.data.data,
+    pagination: response.data.pagination,
+  };
 };
 
 export const getProduct = async (id: string): Promise<ProductDetail> => {

@@ -56,4 +56,21 @@ export interface ProductFormRequest {
 
 export interface ProductFilters {
   search?: string;
+  page?: number;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+  nextPage: number | null;
+  previousPage: number | null;
+}
+
+export interface ProductsResponse {
+  products: ProductSummary[];
+  pagination: Pagination;
 }
