@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "../../../shared/ui/Button";
 import { useLoginMutation } from "../hooks/useLoginMutation";
@@ -39,44 +39,58 @@ export const LoginPage = () => {
   };
 
   return (
-    <main className="p-4">
-      <h1 className="mb-4">Sign In</h1>
+    <div>
+      <div className="mb-8 text-center">
+        <Link className="text-lg font-semibold" to="/">
+          Marketplace
+        </Link>
+        <h1 className="mt-4 text-3xl font-semibold">Sign in</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Buy, sell, and rent with confidence.
+        </p>
+      </div>
 
       {loginMutation.error && (
-        <p className="mb-4" role="alert">
+        <p className="mb-5 text-sm text-red-600" role="alert">
           {errorMessage}
         </p>
       )}
 
       <form
-        className="space-y-4"
+        className="space-y-5"
         noValidate
         onSubmit={handleSubmit(onSubmit)}
       >
-        <div>
-          <label htmlFor="email">Email</label>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700" htmlFor="email">
+            Email
+          </label>
 
           <input
             id="email"
             type="email"
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             aria-invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? "email-error" : undefined}
             {...register("email")}
           />
 
           {errors.email && (
-            <p id="email-error" role="alert">
+            <p id="email-error" className="text-sm text-red-600" role="alert">
               {errors.email.message}
             </p>
           )}
         </div>
 
-        <div>
-          <label htmlFor="password">Password</label>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700" htmlFor="password">
+            Password
+          </label>
 
           <input
             id="password"
             type="password"
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             aria-invalid={Boolean(errors.password)}
             aria-describedby={
               errors.password ? "password-error" : undefined
@@ -85,16 +99,27 @@ export const LoginPage = () => {
           />
 
           {errors.password && (
-            <p id="password-error" role="alert">
+            <p id="password-error" className="text-sm text-red-600" role="alert">
               {errors.password.message}
             </p>
           )}
         </div>
 
-        <Button type="submit" isLoading={loginMutation.isPending}>
+        <Button
+          className="w-full"
+          type="submit"
+          isLoading={loginMutation.isPending}
+        >
           Login
         </Button>
       </form>
-    </main>
+
+      <p className="mt-6 text-center text-sm text-gray-600">
+        Don&apos;t have an account?{" "}
+        <Link className="font-medium text-blue-600" to="/register">
+          Register
+        </Link>
+      </p>
+    </div>
   );
 };

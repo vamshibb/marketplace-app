@@ -8,6 +8,7 @@ import { CreateProductPage } from "../../features/products/pages/CreateProductPa
 import { EditProductPage } from "../../features/products/pages/EditProductPage";
 import { HomePage } from "../../features/home/page/HomePage";
 import { AppLayout } from "../layouts/AppLayout";
+import { AuthLayout } from "../layouts/AuthLayout";
 import { GuestRoute } from "./GuestRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
 
@@ -20,12 +21,17 @@ export const router = createBrowserRouter([
     element: <GuestRoute />,
     children: [
       {
-        path: "/login",
-        element: <LoginPage />,
-      },
-      {
-        path: "/register",
-        element: <RegisterPage />,
+        element: <AuthLayout />,
+        children: [
+          {
+            path: "/login",
+            element: <LoginPage />,
+          },
+          {
+            path: "/register",
+            element: <RegisterPage />,
+          },
+        ],
       },
     ],
   },
