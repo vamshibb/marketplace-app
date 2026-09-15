@@ -36,22 +36,22 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <ProtectedRoute />,
+    element: <AppLayout />,
     children: [
       {
-        element: <AppLayout />,
+        path: "/products",
+        element: <ProductsPage />,
+      },
+      {
+        path: "/products/:id",
+        element: <ProductDetailPage />,
+      },
+      {
+        element: <ProtectedRoute />,
         children: [
-          {
-            path: "/products",
-            element: <ProductsPage />,
-          },
           {
             path: "/products/create",
             element: <CreateProductPage />,
-          },
-          {
-            path: "/products/:id",
-            element: <ProductDetailPage />,
           },
           {
             path: "/products/:id/edit",

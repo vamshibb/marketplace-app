@@ -2,6 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { Container } from "../../../shared/layout/Container";
 import { Button } from "../../../shared/ui/Button";
+import { useRequireAuthentication } from "../../auth";
 import { ProductGallery } from "../components/ProductGallery";
 import { useDeleteProductMutation } from "../hooks/useDeleteProductMutation";
 import { useProductQuery } from "../hooks/useProductQuery";
@@ -11,6 +12,7 @@ export const ProductDetailPage = () => {
   const navigate = useNavigate();
   const productQuery = useProductQuery(id);
   const deleteProductMutation = useDeleteProductMutation();
+  const requireAuthentication = useRequireAuthentication();
 
   if (!id) {
     return (
@@ -47,6 +49,8 @@ export const ProductDetailPage = () => {
       : "Unable to delete product.";
 
   const handleDelete = (): void => {
+    if (!requireAuthentication()) return;
+
     const confirmed = window.confirm(
       "Are you sure you want to delete this product?",
     );
