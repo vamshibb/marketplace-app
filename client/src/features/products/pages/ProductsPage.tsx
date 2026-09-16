@@ -1,9 +1,9 @@
 import { LayoutGrid, List, Plus } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import { useDebounce } from "../../../shared/hooks/useDebounce";
-import { useRequireAuthentication } from "../../auth";
+import { useAuthenticationGuard } from "../../auth";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { Pagination } from "../components/Pagination";
 import { ProductCard } from "../components/ProductCard";
@@ -18,7 +18,8 @@ export const ProductsPage = () => {
   const [sort, setSort] = useState<ProductSort>("newest");
   const [categoryId, setCategoryId] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
-  const requireAuthentication = useRequireAuthentication();
+  const requireAuthentication = useAuthenticationGuard();
+  const navigate = useNavigate();
   const debouncedSearch = useDebounce(search, 300);
   const filters: ProductFilters = {
     search: debouncedSearch.trim() || undefined,
@@ -59,10 +60,10 @@ export const ProductsPage = () => {
         <div className="min-w-0 [&>div]:flex-col [&>div]:items-stretch [&>div]:gap-1">
           <SortSelect value={sort} onChange={handleSortChange} />
         </div>
-        <Link to="/products/create" onClick={(event) => { if (!requireAuthentication()) event.preventDefault(); }} className="inline-flex min-h-12 items-center justify-center gap-2 self-end rounded-lg bg-blue-600 px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+        <button type="button" onClick={() => requireAuthentication(() => navigate("/products/create"))} className="inline-flex min-h-12 items-center justify-center gap-2 self-end rounded-lg bg-blue-600 px-4 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
           <Plus className="size-4" aria-hidden="true" />
           Add Product
-        </Link>
+        </button>
         <div role="group" aria-label="Product view" className="inline-flex h-12 items-center gap-1 justify-self-start rounded-lg border border-slate-200 bg-slate-50 p-1 md:col-span-2 md:justify-self-end lg:col-span-1">
           <button type="button" aria-pressed={view === "grid"} onClick={() => setView("grid")} className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-slate-600 aria-pressed:bg-white aria-pressed:text-blue-600 aria-pressed:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
             <LayoutGrid className="size-4" aria-hidden="true" />
