@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCurrentUserQuery } from "../../features/auth/hooks/useCurrentUserQuery";
 import { useLogout } from "../../features/auth/hooks/useLogout";
 import { Button } from "../ui/Button";
-import { Container } from "./Container";
 
 export const Header = () => {
   const navigate = useNavigate();
@@ -17,9 +16,15 @@ export const Header = () => {
 
   return (
     <header className="border-b">
-      <Container>
+      <div className="mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between gap-6">
-          <Link to={currentUser ? "/products" : "/"}>Marketplace</Link>
+          <Link to={currentUser ? "/products" : "/"}>
+            <img
+              src="/brand/marketplace-logo.png"
+              alt="MarketPlace"
+              className="h-20 w-auto"
+            />
+          </Link>
 
           <nav className="flex gap-4" aria-label="Main navigation">
             <Link to="/products">Products</Link>
@@ -42,7 +47,7 @@ export const Header = () => {
             )}
           </div>
         </div>
-      </Container>
+      </div>
     </header>
   );
 };

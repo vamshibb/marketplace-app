@@ -41,13 +41,15 @@ export const LoginPage = () => {
   return (
     <div>
       <div className="mb-8 text-center">
-        <Link className="text-lg font-semibold" to="/">
-          Marketplace
+        <Link className="inline-flex items-center" to="/">
+          <img
+            src="/brand/marketplace-logo.png"
+            alt="MarketPlace"
+            className="h-25 w-auto"
+          />
         </Link>
         <h1 className="mt-4 text-3xl font-semibold">Sign in</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Buy, sell, and rent with confidence.
-        </p>
+        
       </div>
 
       {loginMutation.error && (
