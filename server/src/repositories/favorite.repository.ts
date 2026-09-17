@@ -1,4 +1,5 @@
 import { prisma } from "../prisma/client";
+import { productSummaryInclude } from "./product.repository";
 
 export const addFavorite = (
   userId: string,
@@ -35,9 +36,7 @@ export const getFavorites = (
     },
     include: {
       product: {
-        include: {
-          category: true,
-        },
+        include: productSummaryInclude,
       },
     },
   });

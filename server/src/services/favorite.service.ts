@@ -1,5 +1,6 @@
 import * as favoriteRepository from "../repositories/favorite.repository";
 import { AppError } from "../errors/AppError";
+import { toProductMediaDto } from "../dto/productMedia.dto";
 
 export const addFavorite = async (
   userId: string,
@@ -31,8 +32,15 @@ export const removeFavorite = (
   );
 };
 
-export const getFavorites = (
+export const getFavorites = async (
   userId: string
 ) => {
-  return favoriteRepository.getFavorites(userId);
+  const favorites = await favoriteRepository.getFavorites(userId);
+  return favorites.map((favorite) => ({
+    ...favorite,
+    product: {
+      ...favorite.product,
+      media: favorite.product.media.map(toProductMediaDto),
+    },
+  }));
 };

@@ -1,6 +1,27 @@
 import { prisma } from "../prisma/client";
 import { Prisma } from "../generated/prisma";
 
+export const productSummaryInclude = {
+  seller: {
+    select: {
+      id: true,
+      email: true,
+    },
+  },
+  category: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+    },
+  },
+  media: {
+    orderBy: {
+      sortOrder: "asc",
+    },
+  },
+} satisfies Prisma.ProductInclude;
+
 export interface ProductFilters {
   page: number;
   limit: number;
@@ -67,26 +88,7 @@ export const findProducts = async (
       orderBy,
       skip,
       take: filters.limit,
-      include: {
-        seller: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
-        category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        media: {
-          orderBy: {
-            sortOrder: "asc",
-          },
-        },
-      },
+      include: productSummaryInclude,
     }),
     prisma.product.count({ where }),
   ]);
