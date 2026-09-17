@@ -32,9 +32,9 @@ export const Header = () => {
                 <Link to="/my-products">
                   My Products
                 </Link>
-                <span aria-disabled="true" className="cursor-default text-gray-500" title="Coming soon">
+                <Link to="/wishlist">
                   Wishlist
-                </span>
+                </Link>
               </>
             )}
           </nav>

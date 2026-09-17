@@ -1,5 +1,7 @@
 export { useAuthStore } from "./hooks/useAuthStore";
 export { useCurrentUserQuery } from "./hooks/useCurrentUserQuery";
+export { getCurrentUser } from "./api/authApi";
+export { authQueryKeys } from "./queryKeys";
 export { useLogout } from "./hooks/useLogout";
 export { useAuthenticationGuard } from "./hooks/useAuthenticationGuard";
 export { AuthenticationGuardProvider } from "./components/AuthenticationGuardProvider";

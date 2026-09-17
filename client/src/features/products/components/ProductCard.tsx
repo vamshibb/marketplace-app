@@ -1,9 +1,10 @@
-import { ArrowRight, Heart, UserRound } from "lucide-react";
+import { ArrowRight, UserRound } from "lucide-react";
 import type { ReactElement } from "react";
 import { Link } from "react-router-dom";
 
 import type { ProductSummary } from "../types";
 import { ProductGallery } from "./ProductGallery";
+import { WishlistButton } from "./WishlistButton";
 
 interface ProductCardProps {
   product: ProductSummary;
@@ -18,15 +19,7 @@ export const ProductCard = ({ product }: ProductCardProps): ReactElement => (
           {product.category.name}
         </span>
       )}
-      <button
-        type="button"
-        disabled
-        aria-label="Wishlist unavailable"
-        title="Wishlist unavailable"
-        className="absolute top-2 right-2 flex size-11 cursor-not-allowed items-center justify-center rounded-full bg-white text-slate-700 shadow-sm"
-      >
-        <Heart className="size-5" aria-hidden="true" />
-      </button>
+      <WishlistButton product={product} />
     </div>
 
     <div className="flex flex-1 flex-col gap-1.5 px-4 py-2.5">

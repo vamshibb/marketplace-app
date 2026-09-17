@@ -5,6 +5,7 @@ import { RegisterPage } from "../../features/auth/pages/RegisterPage";
 import { ProductDetailPage } from "../../features/products/pages/ProductDetailPage";
 import { ProductsPage } from "../../features/products/pages/ProductsPage";
 import { MyProductsPage } from "../../features/products/pages/MyProductsPage";
+import { WishlistPage } from "../../features/products/pages/WishlistPage";
 import { CreateProductPage } from "../../features/products/pages/CreateProductPage";
 import { EditProductPage } from "../../features/products/pages/EditProductPage";
 import { HomePage } from "../../features/home/page/HomePage";
@@ -53,6 +54,10 @@ export const router = createBrowserRouter([
           {
             path: "/my-products",
             element: <MyProductsPage />,
+          },
+          {
+            path: "/wishlist",
+            element: <WishlistPage />,
           },
           {
             path: "/products/create",
