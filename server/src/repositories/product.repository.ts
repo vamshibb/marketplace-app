@@ -12,9 +12,13 @@ export interface ProductFilters {
 }
 
 export const findProducts = async (
-  filters: ProductFilters
+  filters: ProductFilters,
+  sellerId?: string
 ) => {
   const where: Prisma.ProductWhereInput = {};
+  if (sellerId !== undefined) {
+    where.sellerId = sellerId;
+  }
 
   if (filters.search) {
     where.OR = [

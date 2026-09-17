@@ -40,16 +40,29 @@ const validateProductOwnership = async (
   }
 };
 
-export const getAllProducts = async (
-  filters: productRepository.ProductFilters
+const listProducts = async (
+  filters: productRepository.ProductFilters,
+  sellerId?: string
 ) => {
   const { products, total } =
-    await productRepository.findProducts(filters);
+    await productRepository.findProducts(filters, sellerId);
 
   return {
     products: products.map(withMediaDto),
     total,
   };
+};
+
+export const getAllProducts = (
+  filters: productRepository.ProductFilters
+) => listProducts(filters);
+
+export const getMyProducts = async (
+  userId: string,
+  filters: productRepository.ProductFilters
+) => {
+  if (!userId) throw new AppError("Unauthorized", 401);
+  return listProducts(filters, userId);
 };
 
 export const findProductById = async (

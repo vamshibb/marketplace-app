@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   createProduct,
   getProducts,
+  getMyProducts,
   getProductById,
   deleteProduct,
   updateProduct,
@@ -25,6 +26,13 @@ import {
   productIdParamSchema,
 } from "../validators/commonValidators";
 const router = Router();
+
+router.get(
+  "/mine",
+  authMiddleware,
+  validate(getProductsQuerySchema, "query"),
+  getMyProducts
+);
 
 router.get(
   "/",

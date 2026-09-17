@@ -43,40 +43,46 @@ export const createProduct = async (
   }
 };
 
+const getProductFilters = (req: Request) => {
+  const page = Number(
+    req.query.page ?? 1
+  );
+
+  const limit = Number(
+    req.query.limit ?? 10
+  );
+  const search =
+    req.query.search?.toString().trim();
+  const categoryId =
+    req.query.categoryId?.toString().trim();
+  const minPrice = req.query.minPrice !== undefined
+    ? Number(req.query.minPrice)
+    : undefined;
+  const maxPrice = req.query.maxPrice !== undefined
+    ? Number(req.query.maxPrice)
+    : undefined;
+  const sort = req.query.sort?.toString();
+
+  const filters = {
+    page,
+    limit,
+    search,
+    categoryId,
+    minPrice,
+    maxPrice,
+    sort,
+  };
+  return filters;
+};
+
 export const getProducts = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const page = Number(
-      req.query.page ?? 1
-    );
-
-    const limit = Number(
-      req.query.limit ?? 10
-    );
-    const search =
-      req.query.search?.toString().trim();
-    const categoryId =
-      req.query.categoryId?.toString().trim();
-    const minPrice = req.query.minPrice !== undefined
-      ? Number(req.query.minPrice)
-      : undefined;
-    const maxPrice = req.query.maxPrice !== undefined
-      ? Number(req.query.maxPrice)
-      : undefined;
-    const sort = req.query.sort?.toString();
-
-    const filters = {
-      page,
-      limit,
-      search,
-      categoryId,
-      minPrice,
-      maxPrice,
-      sort,
-    };
+    const filters = getProductFilters(req);
+    const { page, limit } = filters;
 
     const {
       products,
@@ -94,6 +100,23 @@ export const getProducts = async (
         limit,
         total
       ),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getMyProducts = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const filters = getProductFilters(req);
+    const { products, total } = await productService.getMyProducts(req.user!.id, filters);
+    res.json({
+      ...successResponse(products),
+      pagination: buildPagination(filters.page, filters.limit, total),
     });
   } catch (error) {
     next(error);
