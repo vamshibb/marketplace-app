@@ -1,11 +1,8 @@
+import type { UserSummary } from "./user.dto";
+
 interface ProductSummary {
   id: string;
   title: string;
-}
-
-interface UserSummary {
-  id: string;
-  email: string;
 }
 
 interface LastMessageSummary {

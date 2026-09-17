@@ -1,3 +1,4 @@
+import { userSummarySelect } from "./user.select";
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
@@ -11,10 +12,7 @@ const conversationInclude = {
   participants: {
     include: {
       user: {
-        select: {
-          id: true,
-          email: true,
-        },
+        select: userSummarySelect,
       },
     },
   },

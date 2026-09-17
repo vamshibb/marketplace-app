@@ -1,3 +1,4 @@
+import { userSummarySelect } from "./user.select";
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
@@ -10,10 +11,7 @@ const notificationSelect = {
   isRead: true,
   createdAt: true,
   sender: {
-    select: {
-      id: true,
-      email: true,
-    },
+    select: userSummarySelect,
   },
 } satisfies Prisma.NotificationSelect;
 

@@ -4,11 +4,7 @@ import jwt from "jsonwebtoken";
 import { env } from "../config/env";
 import { AppError } from "../errors/AppError";
 import * as authRepository from "../repositories/auth.repository";
-
-interface AuthUser {
-  id: string;
-  email: string;
-}
+import { toUserSummary, type UserSummary } from "../dto/user.dto";
 
 const generateToken = (
   userId: string
@@ -21,20 +17,18 @@ const generateToken = (
 };
 
 const buildAuthResponse = (
-  user: AuthUser
+  user: UserSummary
 ) => {
   return {
     token: generateToken(user.id),
-    user: {
-      id: user.id,
-      email: user.email,
-    },
+    user: toUserSummary(user),
   };
 };
 
 export const register = async (
   email: string,
-  password: string
+  password: string,
+  displayName: string
 ) => {
   const existingUser = await authRepository.findUserByEmail(email);
 
@@ -46,6 +40,7 @@ export const register = async (
   const user = await authRepository.createUser({
     email,
     password: hashedPassword,
+    displayName,
   });
 
   return buildAuthResponse(user);

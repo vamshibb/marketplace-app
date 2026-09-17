@@ -1,12 +1,10 @@
+import { userSummarySelect } from "./user.select";
 import { prisma } from "../prisma/client";
 import { Prisma } from "../generated/prisma";
 
 export const productSummaryInclude = {
   seller: {
-    select: {
-      id: true,
-      email: true,
-    },
+    select: userSummarySelect,
   },
   category: {
     select: {
@@ -101,10 +99,7 @@ export const findProductById = (id: string) => {
     where: { id },
     include: {
       seller: {
-        select: {
-          id: true,
-          email: true,
-        },
+        select: userSummarySelect,
       },
 
       category: {
@@ -118,10 +113,7 @@ export const findProductById = (id: string) => {
       reviews: {
         include: {
           user: {
-            select: {
-              id: true,
-              email: true,
-            },
+            select: userSummarySelect,
           },
         },
         orderBy: {

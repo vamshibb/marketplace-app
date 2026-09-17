@@ -1,3 +1,4 @@
+import { userSummarySelect } from "./user.select";
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
@@ -14,10 +15,7 @@ export const findUserById = (
 ) => {
   return prisma.user.findUnique({
     where: { id },
-    select: {
-      id: true,
-      email: true,
-    },
+    select: userSummarySelect,
   });
 };
 

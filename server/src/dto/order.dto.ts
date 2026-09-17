@@ -1,9 +1,6 @@
-import { OrderStatus } from "../generated/prisma";
+import type { UserSummary } from "./user.dto";
 
-interface OrderUserSummary {
-  id: string;
-  email: string;
-}
+import { OrderStatus } from "../generated/prisma";
 
 interface OrderProductSummary {
   id: string;
@@ -18,8 +15,8 @@ interface OrderSource {
     toString(): string;
   };
   product: OrderProductSummary;
-  buyer: OrderUserSummary;
-  seller: OrderUserSummary;
+  buyer: UserSummary;
+  seller: UserSummary;
   requestedFrom: Date | null;
   requestedTo: Date | null;
   notes: string | null;
@@ -33,8 +30,8 @@ export interface OrderDTO {
   quantity: number;
   unitPrice: string;
   product: OrderProductSummary;
-  buyer: OrderUserSummary;
-  seller: OrderUserSummary;
+  buyer: UserSummary;
+  seller: UserSummary;
   requestedFrom: Date | null;
   requestedTo: Date | null;
   notes: string | null;

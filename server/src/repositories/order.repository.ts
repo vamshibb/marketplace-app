@@ -1,3 +1,4 @@
+import { userSummarySelect } from "./user.select";
 import {
   OrderStatus,
   Prisma,
@@ -19,16 +20,10 @@ export const orderSelect = {
   createdAt: true,
   updatedAt: true,
   buyer: {
-    select: {
-      id: true,
-      email: true,
-    },
+    select: userSummarySelect,
   },
   seller: {
-    select: {
-      id: true,
-      email: true,
-    },
+    select: userSummarySelect,
   },
   product: {
     select: {

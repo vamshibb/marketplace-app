@@ -1,3 +1,4 @@
+import type { UserSummary } from "./user.dto";
 import { NotificationType } from "../generated/prisma";
 
 export interface NotificationDTO {
@@ -5,10 +6,7 @@ export interface NotificationDTO {
   type: NotificationType;
   title: string;
   body: string | null;
-  sender: {
-    id: string;
-    email: string;
-  } | null;
+  sender: UserSummary | null;
   metadata: Record<string, unknown> | null;
   isRead: boolean;
   createdAt: Date;
@@ -19,10 +17,7 @@ interface NotificationSource {
   type: NotificationType;
   title: string;
   body: string | null;
-  sender: {
-    id: string;
-    email: string;
-  } | null;
+  sender: UserSummary | null;
   metadata: unknown;
   isRead: boolean;
   createdAt: Date;
