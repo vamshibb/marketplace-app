@@ -56,7 +56,7 @@ export const Header = () => {
                 }}
               >
                 <summary className="cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                  {currentUser?.email ?? "Loading account…"}
+                  {currentUser?.displayName ?? currentUser?.email ?? "Loading account…"}
                 </summary>
                 <div className="absolute right-0 top-full z-20 mt-2 min-w-40 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
                   <button

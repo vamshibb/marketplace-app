@@ -34,9 +34,9 @@ export const ProductCard = ({ product }: ProductCardProps): ReactElement => (
           <UserRound className="size-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p title={product.seller.email} className="truncate text-sm leading-5 text-slate-600">
+          <p title={product.seller.displayName ?? product.seller.email} className="truncate text-sm leading-5 text-slate-600">
             <span className="sr-only">Listed by: </span>
-            {product.seller.email}
+            {product.seller.displayName ?? product.seller.email}
           </p>
           <p className="text-xs leading-4 text-slate-500">Seller</p>
         </div>

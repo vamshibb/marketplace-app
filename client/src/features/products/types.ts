@@ -1,7 +1,6 @@
-export interface ProductSeller {
-  id: string;
-  email: string;
-}
+import type { UserSummary } from "../auth";
+
+export type ProductSeller = UserSummary;
 
 export interface ProductCategory {
   id: string;

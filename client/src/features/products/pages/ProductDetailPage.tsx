@@ -130,7 +130,7 @@ export const ProductDetailPage = () => {
             <dl className="space-y-2 border-t border-slate-200 pt-3 text-sm">
               <div className="space-y-1">
                 <dt className="font-medium text-slate-500">Seller</dt>
-                <dd className="wrap-anywhere text-slate-700">{product.seller.email}</dd>
+                <dd className="wrap-anywhere text-slate-700">{product.seller.displayName ?? product.seller.email}</dd>
               </div>
               {hasListedDate && (
                 <div className="space-y-1">

@@ -1,4 +1,5 @@
 export { useAuthStore } from "./hooks/useAuthStore";
+export type { UserSummary } from "./types";
 export { useCurrentUserQuery } from "./hooks/useCurrentUserQuery";
 export { getCurrentUser } from "./api/authApi";
 export { authQueryKeys } from "./queryKeys";
