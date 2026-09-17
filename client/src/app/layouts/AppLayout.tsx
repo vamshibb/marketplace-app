@@ -7,7 +7,7 @@ import { Header } from "../../shared/layout/Header";
 export const AppLayout = () => (
   <div className="flex min-h-screen flex-col">
     <Header />
-    <main className="flex-1">
+    <main className="flex-1 has-[[data-page=product-details]]:bg-slate-50 [&>div:has([data-page=product-details])]:py-3">
       <Container>
         <Outlet />
       </Container>
