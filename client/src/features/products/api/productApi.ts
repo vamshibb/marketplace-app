@@ -1,3 +1,5 @@
+import type { AxiosResponse } from "axios";
+
 import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type {
@@ -35,6 +37,23 @@ export const getProducts = async (
     products: response.data.data,
     pagination: response.data.pagination,
   };
+};
+
+export const getMyProducts = async (signal?: AbortSignal): Promise<ProductSummary[]> => {
+  const products: ProductSummary[] = [];
+  let page: number | null = 1;
+
+  // Fetch only this user's pages; the initial UI has no pagination controls.
+  while (page !== null) {
+    const response: AxiosResponse<ProductsApiResponse> = await api.get<ProductsApiResponse>("/products/mine", {
+      params: { page },
+      signal,
+    });
+    products.push(...response.data.data);
+    page = response.data.pagination.nextPage;
+  }
+
+  return products;
 };
 
 export const getProduct = async (id: string): Promise<ProductDetail> => {

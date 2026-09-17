@@ -29,9 +29,9 @@ export const Header = () => {
             <Link to="/products">Products</Link>
             {isAuthenticated && (
               <>
-                <span aria-disabled="true" className="cursor-default text-gray-500" title="Coming soon">
+                <Link to="/my-products">
                   My Products
-                </span>
+                </Link>
                 <span aria-disabled="true" className="cursor-default text-gray-500" title="Coming soon">
                   Wishlist
                 </span>

@@ -4,6 +4,7 @@ import { LoginPage } from "../../features/auth/pages/LoginPage";
 import { RegisterPage } from "../../features/auth/pages/RegisterPage";
 import { ProductDetailPage } from "../../features/products/pages/ProductDetailPage";
 import { ProductsPage } from "../../features/products/pages/ProductsPage";
+import { MyProductsPage } from "../../features/products/pages/MyProductsPage";
 import { CreateProductPage } from "../../features/products/pages/CreateProductPage";
 import { EditProductPage } from "../../features/products/pages/EditProductPage";
 import { HomePage } from "../../features/home/page/HomePage";
@@ -49,6 +50,10 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
+          {
+            path: "/my-products",
+            element: <MyProductsPage />,
+          },
           {
             path: "/products/create",
             element: <CreateProductPage />,
