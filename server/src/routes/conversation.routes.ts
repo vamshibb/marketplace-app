@@ -8,12 +8,15 @@ import {
   getConversationParamsSchema,
 } from "../validators/conversation.validator";
 
+import { sendMessageSchema } from "../validators/message.validator";
+
 const router = Router();
 
 router.post(
   "/products/:productId/conversations",
   authMiddleware,
   validate(createConversationParamsSchema, "params"),
+  validate(sendMessageSchema),
   conversationController.createConversation
 );
 

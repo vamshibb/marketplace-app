@@ -1,3 +1,4 @@
+import * as notificationService from "./notification.service";
 import { AppError } from "../errors/AppError";
 import {
   toConversationDTO,
@@ -48,7 +49,8 @@ const ensureProductExists = async (
 
 export const createConversation = async (
   productId: string,
-  buyerId: string
+  buyerId: string,
+  content: string
 ) => {
   const product = await ensureProductExists(productId);
 
@@ -59,25 +61,22 @@ export const createConversation = async (
     );
   }
 
-  const userIds = [buyerId, product.sellerId];
-  const existingConversation =
-    await conversationRepository.findConversationByProductAndUsers(
-      productId,
-      userIds
-    );
+  const conversation = await conversationRepository.createConversationWithMessage(
+    productId,
+    [buyerId, product.sellerId],
+    buyerId,
+    content
+  );
 
-  if (existingConversation) {
-    return toConversationDTO(existingConversation);
-  }
-
-  const conversation =
-    await conversationRepository.createConversationAndParticipants(
-      productId,
-      userIds
-    );
-
-  if (!conversation) {
-    throw new AppError("Conversation could not be created", 500);
+  // Notify only after the conversation and message have committed.
+  const sender = conversation.participants.find((participant) => participant.userId === buyerId)!.user;
+  if (conversation.product) {
+    await notificationService.notifyMessage({
+      recipientId: product.sellerId,
+      sender,
+      product: conversation.product,
+      conversationId: conversation.id,
+    });
   }
 
   return toConversationDTO(conversation);

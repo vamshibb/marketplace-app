@@ -2,9 +2,10 @@ import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
 export const createMessageAndUpdateLastMessageAt = (
-  data: Prisma.MessageUncheckedCreateInput
+  data: Prisma.MessageUncheckedCreateInput,
+  transaction?: Prisma.TransactionClient
 ) => {
-  return prisma.$transaction(async (transaction) => {
+  const createMessage = async (transaction: Prisma.TransactionClient) => {
     const message = await transaction.message.create({
       data,
     });
@@ -15,7 +16,9 @@ export const createMessageAndUpdateLastMessageAt = (
     });
 
     return message;
-  });
+  };
+
+  return transaction ? createMessage(transaction) : prisma.$transaction(createMessage);
 };
 
 export const findMessagesByConversation = (

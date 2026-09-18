@@ -1,3 +1,4 @@
+import { createMessageAndUpdateLastMessageAt } from "./message.repository";
 import { userSummarySelect } from "./user.select";
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
@@ -29,9 +30,10 @@ export const findConversationById = (
 
 export const findConversationByProductAndUsers = (
   productId: string | null,
-  userIds: string[]
+  userIds: string[],
+  transaction: Prisma.TransactionClient = prisma
 ) => {
-  return prisma.conversation.findFirst({
+  return transaction.conversation.findFirst({
     where: {
       productId,
       AND: userIds.map((userId) => ({
@@ -51,28 +53,42 @@ export const findConversationByProductAndUsers = (
   });
 };
 
-export const createConversationAndParticipants = (
+export const createConversationWithMessage = async (
   productId: string,
-  userIds: string[]
+  userIds: string[],
+  senderId: string,
+  content: string
 ) => {
-  return prisma.$transaction(async (transaction) => {
-    const conversation =
-      await transaction.conversation.create({
-        data: { productId },
-      });
+  // Retry serialization conflicts so concurrent first messages reuse the winner.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(async (transaction) => {
+        const existing = await findConversationByProductAndUsers(productId, userIds, transaction);
+        const conversation = existing ?? await transaction.conversation.create({
+          data: {
+            productId,
+            participants: { create: userIds.map((userId) => ({ userId })) },
+          },
+        });
 
-    await transaction.conversationParticipant.createMany({
-      data: userIds.map((userId) => ({
-        conversationId: conversation.id,
-        userId,
-      })),
-    });
+        await createMessageAndUpdateLastMessageAt({
+          conversationId: conversation.id,
+          senderId,
+          content,
+        }, transaction);
 
-    return transaction.conversation.findUnique({
-      where: { id: conversation.id },
-      include: conversationInclude,
-    });
-  });
+        return transaction.conversation.findUniqueOrThrow({
+          where: { id: conversation.id },
+          include: conversationInclude,
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) {
+        continue;
+      }
+      throw error;
+    }
+  }
 };
 
 export const findUserConversations = (
@@ -80,6 +96,7 @@ export const findUserConversations = (
 ) => {
   return prisma.conversation.findMany({
     where: {
+      messages: { some: {} },
       participants: {
         some: { userId },
       },

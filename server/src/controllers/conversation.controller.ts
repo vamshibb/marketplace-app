@@ -16,7 +16,8 @@ export const createConversation = async (
     const conversation =
       await conversationService.createConversation(
         req.params.productId,
-        req.user!.id
+        req.user!.id,
+        req.body.content
       );
 
     return res.status(201).json(
