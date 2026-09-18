@@ -21,7 +21,7 @@ export const useContactSeller = (productId: string, sellerId: string, openCompos
       const user = await queryClient.ensureQueryData({ queryKey: authQueryKeys.currentUser(), queryFn: getCurrentUser });
       if (user.id === sellerId) throw new Error("You cannot contact yourself about your own listing.");
       if (useAuthStore.getState().token !== token) throw new Error("Your session changed. Please try again.");
-      const items = await queryClient.fetchQuery(conversationsQueryOptions(user.id));
+      const items = await queryClient.ensureQueryData(conversationsQueryOptions(user.id));
       return { conversation: findSellerConversation(items, productId, sellerId), token };
     },
     onSuccess: ({ conversation, token }) => {

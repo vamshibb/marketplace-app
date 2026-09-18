@@ -6,7 +6,8 @@ import { messagingQueryKeys } from "../queryKeys";
 export const conversationsQueryOptions = (userId: string | undefined) => queryOptions({
   queryKey: messagingQueryKeys.conversations(userId),
   queryFn: ({ signal }) => getConversations(signal),
-  staleTime: 30_000,
+  staleTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
 });
 
 export const useConversationsQuery = () => {
