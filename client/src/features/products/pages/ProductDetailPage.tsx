@@ -1,3 +1,5 @@
+import { ContactSellerButton } from "../../messaging";
+import { WishlistButton } from "../components/WishlistButton";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { useAuthStore, useCurrentUserQuery, useRequireAuthentication } from "../../auth";
@@ -98,6 +100,14 @@ export const ProductDetailPage = () => {
                   </span>
                 )}
               </div>
+              {!isOwner && (!isAuthenticated || currentUser) && (
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <div className="relative size-11 [&>button]:inset-0">
+                    <WishlistButton product={product} />
+                  </div>
+                  <ContactSellerButton productId={product.id} sellerId={product.sellerId} />
+                </div>
+              )}
               {isOwner && (
                 <div className="ml-auto flex shrink-0 flex-wrap gap-2">
                   <Link
