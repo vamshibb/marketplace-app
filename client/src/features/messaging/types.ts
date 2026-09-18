@@ -8,6 +8,11 @@ export interface Conversation {
   createdAt: string;
 }
 
+export interface ConversationListItem extends Pick<Conversation, "id" | "product" | "lastMessageAt"> {
+  otherParticipant: UserSummary | null;
+  lastMessage: Pick<Message, "id" | "content" | "createdAt"> | null;
+}
+
 export interface Message {
   id: string;
   content: string;

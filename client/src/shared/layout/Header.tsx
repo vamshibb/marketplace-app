@@ -35,6 +35,7 @@ export const Header = () => {
                 <Link to="/wishlist">
                   Wishlist
                 </Link>
+                <Link to="/messages">Messages</Link>
               </>
             )}
           </nav>

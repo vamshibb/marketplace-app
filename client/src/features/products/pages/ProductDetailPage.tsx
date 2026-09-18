@@ -100,12 +100,12 @@ export const ProductDetailPage = () => {
                   </span>
                 )}
               </div>
-              {!isOwner && (!isAuthenticated || currentUser) && (
+              {!isOwner && (
                 <div className="ml-auto flex shrink-0 items-center gap-2">
-                  <div className="relative size-11 [&>button]:inset-0">
+                  {(!isAuthenticated || currentUser) && <div className="relative size-11 [&>button]:inset-0">
                     <WishlistButton product={product} />
-                  </div>
-                  <ContactSellerButton productId={product.id} sellerId={product.sellerId} />
+                  </div>}
+                  <ContactSellerButton productId={product.id} sellerId={product.sellerId} sellerLabel={product.seller.displayName ?? product.seller.email} />
                 </div>
               )}
               {isOwner && (

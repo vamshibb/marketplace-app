@@ -1,24 +1,31 @@
-import type { ReactElement } from "react";
-import { useIsMutating, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactElement } from "react";
 import { useAuthenticationGuard, useAuthStore, useCurrentUserQuery } from "../../auth";
-import { useCreateConversationMutation } from "../hooks/useCreateConversationMutation";
-import { messagingQueryKeys } from "../queryKeys";
+import { useContactSeller } from "../hooks/useContactSeller";
+import { FirstMessageModal } from "./FirstMessageModal";
 
-export const ContactSellerButton = ({ productId, sellerId }: { productId: string; sellerId: string }): ReactElement | null => {
+interface ContactSellerButtonProps {
+  productId: string;
+  sellerId: string;
+  sellerLabel?: string;
+}
+
+export const ContactSellerButton = ({ productId, sellerId, sellerLabel }: ContactSellerButtonProps): ReactElement | null => {
   const authenticate = useAuthenticationGuard();
   const token = useAuthStore((state) => state.token);
   const user = useCurrentUserQuery();
-  const mutation = useCreateConversationMutation(productId, sellerId);
-  const queryClient = useQueryClient();
-  const mutationKey = messagingQueryKeys.create(productId);
-  const pending = useIsMutating({ mutationKey }) > 0;
+  const [composerOpen, setComposerOpen] = useState(false);
+  const { existing, lookup } = useContactSeller(productId, sellerId, () => setComposerOpen(true));
   if (token && (!user.data || user.data.id === sellerId)) return null;
 
-  return <button type="button" disabled={pending} aria-busy={pending || undefined}
-    className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-wait disabled:opacity-50"
-    onClick={() => authenticate(() => {
-      if (!queryClient.isMutating({ mutationKey })) mutation.mutate();
-    })}>
-    {pending ? "Opening..." : "Contact Seller"}
-  </button>;
+  return <>
+    <button type="button" disabled={lookup.isPending} aria-busy={lookup.isPending || undefined}
+      className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-wait disabled:opacity-50"
+      onClick={() => authenticate(() => lookup.mutate())}>
+      {lookup.isPending ? "Opening..." : token && existing ? "Continue Conversation" : "Contact Seller"}
+    </button>
+    {composerOpen && token && user.data && <FirstMessageModal
+      key={`${productId}:${user.data.id}`}
+      productId={productId} sellerId={sellerId} sellerLabel={sellerLabel}
+      onClose={() => setComposerOpen(false)} />}
+  </>;
 };

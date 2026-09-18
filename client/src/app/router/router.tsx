@@ -1,4 +1,4 @@
-import { ConversationPage } from "../../features/messaging";
+import { ConversationPage, MessagesPage } from "../../features/messaging";
 import { createBrowserRouter } from "react-router-dom";
 
 import { LoginPage } from "../../features/auth/pages/LoginPage";
@@ -52,6 +52,10 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
+          {
+            path: "/messages",
+            element: <MessagesPage />,
+          },
           {
             path: "/messages/:conversationId",
             element: <ConversationPage />,
