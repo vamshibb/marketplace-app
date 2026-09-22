@@ -7,5 +7,7 @@ export const useCategoriesQuery = () => {
   return useQuery({
     queryKey: categoriesQueryKeys.all(),
     queryFn: getCategories,
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
   });
 };
