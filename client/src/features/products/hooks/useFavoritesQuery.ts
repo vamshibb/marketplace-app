@@ -7,7 +7,8 @@ import { favoritesQueryKeys } from "../favoritesQueryKeys";
 export const favoritesQueryOptions = (userId: string) => queryOptions({
   queryKey: favoritesQueryKeys.list(userId),
   queryFn: ({ signal }) => getFavorites(signal),
-  staleTime: 30_000,
+  staleTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
 });
 
 export const useFavoritesQuery = () => {
