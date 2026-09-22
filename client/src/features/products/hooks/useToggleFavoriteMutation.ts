@@ -41,7 +41,6 @@ export const useToggleFavoriteMutation = (product: ProductSummary) => {
         const remaining = current.filter((item) => item.productId !== product.id);
         return favorite ? [...remaining, favorite] : remaining;
       });
-      await queryClient.invalidateQueries({ queryKey });
     },
     onError: (error) => {
       toast.error(error.message || "Unable to update your wishlist.");
