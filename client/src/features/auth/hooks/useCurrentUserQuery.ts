@@ -11,5 +11,7 @@ export const useCurrentUserQuery = () => {
     queryKey: authQueryKeys.currentUser(),
     queryFn: getCurrentUser,
     enabled: Boolean(token),
+    staleTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
   });
 };
