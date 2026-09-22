@@ -1,24 +1,29 @@
-import { ConversationPage, MessagesPage } from "../../features/messaging";
+import { Suspense } from "react";
 import { createBrowserRouter } from "react-router-dom";
 
-import { LoginPage } from "../../features/auth/pages/LoginPage";
-import { RegisterPage } from "../../features/auth/pages/RegisterPage";
-import { ProductDetailPage } from "../../features/products/pages/ProductDetailPage";
-import { ProductsPage } from "../../features/products/pages/ProductsPage";
-import { MyProductsPage } from "../../features/products/pages/MyProductsPage";
-import { WishlistPage } from "../../features/products/pages/WishlistPage";
-import { CreateProductPage } from "../../features/products/pages/CreateProductPage";
-import { EditProductPage } from "../../features/products/pages/EditProductPage";
-import { HomePage } from "../../features/home/page/HomePage";
 import { AppLayout } from "../layouts/AppLayout";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { GuestRoute } from "./GuestRoute";
 import { ProtectedRoute } from "./ProtectedRoute";
 
+import {
+  LoginPage,
+  RegisterPage,
+  ProductDetailPage,
+  ProductsPage,
+  MyProductsPage,
+  WishlistPage,
+  CreateProductPage,
+  EditProductPage,
+  HomePage,
+  ConversationPage,
+  MessagesPage,
+} from "./lazyPages";
+
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <HomePage />,
+    element: <Suspense fallback={<p>Loading...</p>}><HomePage /></Suspense>,
   },
   {
     element: <GuestRoute />,
@@ -28,11 +33,11 @@ export const router = createBrowserRouter([
         children: [
           {
             path: "/login",
-            element: <LoginPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><LoginPage /></Suspense>,
           },
           {
             path: "/register",
-            element: <RegisterPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><RegisterPage /></Suspense>,
           },
         ],
       },
@@ -43,38 +48,38 @@ export const router = createBrowserRouter([
     children: [
       {
         path: "/products",
-        element: <ProductsPage />,
+        element: <Suspense fallback={<p>Loading...</p>}><ProductsPage /></Suspense>,
       },
       {
         path: "/products/:id",
-        element: <ProductDetailPage />,
+        element: <Suspense fallback={<p>Loading...</p>}><ProductDetailPage /></Suspense>,
       },
       {
         element: <ProtectedRoute />,
         children: [
           {
             path: "/messages",
-            element: <MessagesPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><MessagesPage /></Suspense>,
           },
           {
             path: "/messages/:conversationId",
-            element: <ConversationPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><ConversationPage /></Suspense>,
           },
           {
             path: "/my-products",
-            element: <MyProductsPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><MyProductsPage /></Suspense>,
           },
           {
             path: "/wishlist",
-            element: <WishlistPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><WishlistPage /></Suspense>,
           },
           {
             path: "/products/create",
-            element: <CreateProductPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><CreateProductPage /></Suspense>,
           },
           {
             path: "/products/:id/edit",
-            element: <EditProductPage />,
+            element: <Suspense fallback={<p>Loading...</p>}><EditProductPage /></Suspense>,
           },
         ],
       },
