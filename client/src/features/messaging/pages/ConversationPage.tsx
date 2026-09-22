@@ -10,7 +10,7 @@ export const ConversationPage = (): ReactElement => {
   const { conversationId = "" } = useParams();
   const user = useCurrentUserQuery();
   const conversation = useConversationQuery(conversationId, user.data?.id);
-  const messages = useMessagesQuery(conversationId, conversation.isSuccess ? user.data?.id : undefined);
+  const messages = useMessagesQuery(conversationId, user.data?.id);
   if (!conversationId) return <p role="alert">Invalid conversation.</p>;
   if (user.isError || conversation.isError) return <section className="space-y-3 py-6">
     <p role="alert" className="text-red-600">Unable to open this conversation. It may be unavailable or you may not have access.</p>
