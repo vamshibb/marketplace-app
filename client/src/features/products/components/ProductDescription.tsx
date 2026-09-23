@@ -24,7 +24,7 @@ export const ProductDescription = ({ description }: ProductDescriptionProps): Re
   }, [description]);
 
   return (
-    <section className="space-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <section className="space-y-2 border-t border-slate-200 pt-4">
       <h2 className="text-xl font-semibold tracking-tight text-gray-950">Description</h2>
       <p
         ref={paragraphRef}

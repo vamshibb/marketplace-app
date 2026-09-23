@@ -1,10 +1,11 @@
+import { CalendarDays, UserRound } from "lucide-react";
 import { ContactSellerButton } from "../../messaging";
 import { WishlistButton } from "../components/WishlistButton";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { useAuthStore, useCurrentUserQuery, useRequireAuthentication } from "../../auth";
 import { ProductDescription } from "../components/ProductDescription";
-import { ProductGallery } from "../components/ProductGallery";
+import { ProductDetailGallery } from "../components/ProductDetailGallery";
 import { useDeleteProductMutation } from "../hooks/useDeleteProductMutation";
 import { useProductQuery } from "../hooks/useProductQuery";
 
@@ -83,12 +84,10 @@ export const ProductDetailPage = () => {
       </Link>
 
       <article className="space-y-4">
-        <div className="grid items-stretch gap-4 lg:grid-cols-2">
-          <div className="relative min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:min-h-80 lg:[&>div]:absolute lg:[&>div]:inset-0 lg:[&>div]:h-full lg:[&>div]:aspect-auto [&>div]:rounded-none [&>div>div]:rounded-none [&>div>div]:border-0">
-            <ProductGallery media={product.media} />
-          </div>
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:[&>*]:h-[480px]">
+          <ProductDetailGallery key={product.id} media={product.media} title={product.title} />
 
-          <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:min-h-0 lg:overflow-y-auto lg:[&>*]:shrink-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold wrap-anywhere text-blue-800">
@@ -100,14 +99,6 @@ export const ProductDetailPage = () => {
                   </span>
                 )}
               </div>
-              {!isOwner && (
-                <div className="ml-auto flex shrink-0 items-center gap-2">
-                  {(!isAuthenticated || currentUser) && <div className="relative size-11 [&>button]:inset-0">
-                    <WishlistButton product={product} />
-                  </div>}
-                  <ContactSellerButton productId={product.id} sellerId={product.sellerId} sellerLabel={product.seller.displayName ?? product.seller.email} />
-                </div>
-              )}
               {isOwner && (
                 <div className="ml-auto flex shrink-0 flex-wrap gap-2">
                   <Link
@@ -139,12 +130,12 @@ export const ProductDetailPage = () => {
 
             <dl className="space-y-2 border-t border-slate-200 pt-3 text-sm">
               <div className="space-y-1">
-                <dt className="font-medium text-slate-500">Seller</dt>
+                <dt className="flex items-center gap-2 font-medium text-slate-500"><UserRound className="size-4" aria-hidden="true" />Seller</dt>
                 <dd className="wrap-anywhere text-slate-700">{product.seller.displayName ?? product.seller.email}</dd>
               </div>
               {hasListedDate && (
                 <div className="space-y-1">
-                  <dt className="font-medium text-slate-500">Listed</dt>
+                  <dt className="flex items-center gap-2 font-medium text-slate-500"><CalendarDays className="size-4" aria-hidden="true" />Listed</dt>
                   <dd className="text-slate-700">
                     <time dateTime={product.createdAt}>
                       {listedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
@@ -154,6 +145,17 @@ export const ProductDetailPage = () => {
               )}
             </dl>
 
+            <ProductDescription key={`${product.id}:${product.description}`} description={product.description} />
+
+              {!isOwner && (
+                <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
+                  {(!isAuthenticated || currentUser) && <div className="relative size-11 [&>button]:inset-0">
+                    <WishlistButton product={product} />
+                  </div>}
+                  <ContactSellerButton productId={product.id} sellerId={product.sellerId} sellerLabel={product.seller.displayName ?? product.seller.email} />
+                </div>
+              )}
+
             {deleteProductMutation.isError && (
               <p className="text-sm text-red-600" role="alert">
                 {deleteErrorMessage}
@@ -162,7 +164,6 @@ export const ProductDetailPage = () => {
           </div>
         </div>
 
-        <ProductDescription key={`${product.id}:${product.description}`} description={product.description} />
       </article>
     </div>
   );
