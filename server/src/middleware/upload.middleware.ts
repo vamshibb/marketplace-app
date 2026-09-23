@@ -20,7 +20,7 @@ export const upload = multer({
   },
 
   fileFilter: (req, file, cb) => {
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    if (allowedMimeTypes.includes(file.mimetype) || file.mimetype === "application/octet-stream") {
       cb(null, true);
       return;
     }

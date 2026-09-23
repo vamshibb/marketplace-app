@@ -25,39 +25,45 @@ const isVideo = (mimeType: string): boolean => {
   return ALLOWED_VIDEO_TYPES.includes(mimeType);
 };
 
-export const validateProductMedia = (
+export const validateProductMedia = async (
   req: Request,
   _res: Response,
   next: NextFunction
-): void => {
-  const files = req.files as Express.Multer.File[] | undefined;
-
-  if (!files?.length) {
-    return next(new AppError("At least one media file is required", 400));
-  }
-
-  if (files.length > MEDIA_LIMITS.MAX_FILES) {
-    return next(
-      new AppError(
-        `A maximum of ${MEDIA_LIMITS.MAX_FILES} media files is allowed`,
-        400
-      )
-    );
-  }
-
-  for (const file of files) {
-    if (!isImage(file.mimetype) && !isVideo(file.mimetype)) {
-      return next(new AppError("Unsupported media type", 400));
+): Promise<void> => {
+  try {
+    const files = req.files;
+    if (!Array.isArray(files) || !files.length) {
+      throw new AppError("At least one media file is required", 400);
+    }
+    if (files.length > MEDIA_LIMITS.MAX_FILES) {
+      throw new AppError(`A maximum of ${MEDIA_LIMITS.MAX_FILES} media files is allowed`, 400);
     }
 
-    if (isImage(file.mimetype) && file.size > MEDIA_LIMITS.MAX_IMAGE_SIZE) {
-      return next(new AppError("Image size exceeds the 10 MB limit", 400));
-    }
+    // file-type is ESM; native import works with the existing NodeNext backend.
+    const { fileTypeFromBuffer } = await import("file-type");
+    // Validate the entire batch before the controller can start any Azure upload.
+    for (const file of files) {
+      let detected;
+      try {
+        detected = await fileTypeFromBuffer(file.buffer);
+      } catch {
+        throw new AppError("Unsupported or invalid media file", 400);
+      }
+      if (!detected || (!isImage(detected.mime) && !isVideo(detected.mime))) {
+        throw new AppError("Unsupported media type", 400);
+      }
+      if (isImage(detected.mime) && file.size > MEDIA_LIMITS.MAX_IMAGE_SIZE) {
+        throw new AppError("Image size exceeds the 10 MB limit", 400);
+      }
+      if (isVideo(detected.mime) && file.size > MEDIA_LIMITS.MAX_VIDEO_SIZE) {
+        throw new AppError("Video size exceeds the 100 MB limit", 400);
+      }
 
-    if (isVideo(file.mimetype) && file.size > MEDIA_LIMITS.MAX_VIDEO_SIZE) {
-      return next(new AppError("Video size exceeds the 100 MB limit", 400));
+      // Use the detected MIME for IMAGE/VIDEO classification and Azure headers.
+      file.mimetype = detected.mime;
     }
+    next();
+  } catch (error) {
+    next(error);
   }
-
-  next();
 };

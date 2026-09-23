@@ -13,7 +13,7 @@ import {
 import { authMiddleware } from "../middleware/authMiddleware";
 import { upload } from "../middleware/upload.middleware";
 import { validate } from "../middleware/validationMiddleware";
-import { reorderProductMediaSchema } from "../validators/productMedia.validator";
+import { reorderProductMediaSchema, validateProductMedia } from "../validators/productMedia.validator";
 import {
   mediaIdParamSchema,
   productIdParamSchema,
@@ -35,6 +35,7 @@ router.post(
     MEDIA_FIELD_NAME,
     MEDIA_LIMITS.MAX_FILES
   ),
+  validateProductMedia,
   uploadMedia
 );
 
