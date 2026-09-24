@@ -41,9 +41,14 @@ export const MessagesPage = (): ReactElement => {
                   </p>
                   <p className="text-sm wrap-anywhere text-slate-600">{conversation.product?.title ?? "Listing no longer available"}</p>
                 </div>
+                <div className="flex shrink-0 items-center gap-3">
+                {conversation.unreadCount > 0 && <span aria-label={`${conversation.unreadCount} unread messages`} className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">
+                  {conversation.unreadCount}
+                </span>}
                 <time dateTime={conversation.lastMessageAt} className="shrink-0 text-xs text-slate-500">
                   {new Date(conversation.lastMessageAt).toLocaleString()}
                 </time>
+                </div>
               </Link>
             </li>
           ))}

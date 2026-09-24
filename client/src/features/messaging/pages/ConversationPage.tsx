@@ -4,7 +4,7 @@ import { useCurrentUserQuery } from "../../auth";
 import { useConversationQuery } from "../hooks/useConversationQuery";
 import { useMessagesQuery } from "../hooks/useMessagesQuery";
 import { MessageComposer } from "../components/MessageComposer";
-import { MessageList } from "../components/MessageList";
+import { ReadMessageList } from "../components/ReadMessageList";
 
 export const ConversationPage = (): ReactElement => {
   const { conversationId = "" } = useParams();
@@ -30,7 +30,7 @@ export const ConversationPage = (): ReactElement => {
       {messages.isPending ? <p role="status">Loading messages...</p> : messages.isError ? <div className="space-y-2">
         <p role="alert" className="text-red-600">Unable to load messages.</p>
         <button type="button" className="text-blue-600 underline" onClick={() => void messages.refetch()}>Try again</button>
-      </div> : <MessageList messages={messages.data} userId={user.data.id} />}
+      </div> : <ReadMessageList key={`${user.data.id}:${conversationId}`} messages={messages.data} userId={user.data.id} conversationId={conversationId} />}
       <MessageComposer key={`${user.data.id}:${conversationId}`} conversationId={conversationId} userId={user.data.id} />
     </div>
   </section>;

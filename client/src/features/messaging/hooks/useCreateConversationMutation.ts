@@ -31,6 +31,7 @@ export const useCreateConversationMutation = (productId: string, sellerId: strin
         const previous = current.find((item) => item.id === conversation.id);
         const item: ConversationListItem = {
           id: conversation.id,
+          unreadCount: previous?.unreadCount ?? 0,
           product: conversation.product,
           otherParticipant: conversation.participants.find((participant) => participant.id !== userId) ?? null,
           lastMessageAt: conversation.lastMessageAt,

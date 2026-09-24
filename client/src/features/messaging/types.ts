@@ -9,6 +9,7 @@ export interface Conversation {
 }
 
 export interface ConversationListItem extends Pick<Conversation, "id" | "product" | "lastMessageAt"> {
+  unreadCount: number;
   otherParticipant: UserSummary | null;
   lastMessage: Pick<Message, "id" | "content" | "createdAt"> | null;
 }
