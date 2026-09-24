@@ -2,10 +2,10 @@ import { Plus } from "lucide-react";
 import type { ReactElement } from "react";
 import { Link } from "react-router-dom";
 
+import { addProductClassName } from "../components/addProductButtonStyles";
 import { ProductCard } from "../components/ProductCard";
 import { useMyProductsQuery } from "../hooks/useMyProductsQuery";
 
-const addProductClassName = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600";
 
 export const MyProductsPage = (): ReactElement => {
   const productsQuery = useMyProductsQuery();

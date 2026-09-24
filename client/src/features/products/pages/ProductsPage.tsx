@@ -6,6 +6,7 @@ import { useDebounce } from "../../../shared/hooks/useDebounce";
 import { useAuthenticationGuard } from "../../auth";
 import { CategoryFilter } from "../components/CategoryFilter";
 import { Pagination } from "../components/Pagination";
+import { addProductClassName } from "../components/addProductButtonStyles";
 import { ProductCard } from "../components/ProductCard";
 import { SearchBar } from "../components/SearchBar";
 import { SortSelect } from "../components/SortSelect";
@@ -60,7 +61,7 @@ export const ProductsPage = () => {
         <div className="min-w-0 flex-1 md:w-36 md:flex-none lg:w-44">
           <SortSelect value={sort} onChange={handleSortChange} />
         </div>
-        <button type="button" onClick={() => requireAuthentication(() => navigate("/products/create"))} className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+        <button type="button" onClick={() => requireAuthentication(() => navigate("/products/create"))} className={addProductClassName}>
           <Plus className="size-4" aria-hidden="true" />
           Add Product
         </button>
