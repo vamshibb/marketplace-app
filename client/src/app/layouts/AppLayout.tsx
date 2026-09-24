@@ -1,7 +1,6 @@
 import { Outlet } from "react-router-dom";
 
 import { Container } from "../../shared/layout/Container";
-import { Footer } from "../../shared/layout/Footer";
 import { Header } from "../../shared/layout/Header";
 
 export const AppLayout = () => (
@@ -12,6 +11,5 @@ export const AppLayout = () => (
         <Outlet />
       </Container>
     </main>
-    <Footer />
   </div>
 );

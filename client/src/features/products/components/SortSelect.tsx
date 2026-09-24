@@ -14,7 +14,7 @@ export const SortSelect = ({ value, onChange }: SortSelectProps) => {
 
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="product-sort">Sort by</label>
+      <label htmlFor="product-sort" className="sr-only">Sort by</label>
       <select
         id="product-sort"
         className="rounded-lg border px-4 py-3"

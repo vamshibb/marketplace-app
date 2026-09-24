@@ -60,6 +60,7 @@ export type ProductSort =
   | "price_desc";
 
 export interface ProductFilters {
+  limit?: number;
   search?: string;
   page?: number;
   sort?: ProductSort;

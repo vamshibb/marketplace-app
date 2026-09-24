@@ -16,7 +16,7 @@ export const CategoryFilter = ({ value, onChange }: CategoryFilterProps) => {
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor="product-category">Category</label>
+      <label htmlFor="product-category" className="sr-only">Category</label>
       <select
         id="product-category"
         className="rounded-lg border px-4 py-3"
