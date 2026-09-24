@@ -7,6 +7,17 @@ import { AuthRequest } from "../middleware/authMiddleware";
 import * as conversationService from "../services/conversation.service";
 import { successResponse } from "../utils/apiResponse";
 
+export const markConversationRead = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const result = await conversationService.markConversationRead(
+      req.params.conversationId, req.user!.id, req.body.lastReadMessageId
+    );
+    return res.status(200).json(successResponse(result, "Conversation marked as read"));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createConversation = async (
   req: AuthRequest,
   res: Response,

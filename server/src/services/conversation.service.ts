@@ -1,3 +1,5 @@
+import * as conversationReadRepository from "../repositories/conversationRead.repository";
+import * as messageRepository from "../repositories/message.repository";
 import * as notificationService from "./notification.service";
 import { AppError } from "../errors/AppError";
 import {
@@ -61,7 +63,7 @@ export const createConversation = async (
     );
   }
 
-  const conversation = await conversationRepository.createConversationWithMessage(
+  const { conversation, message } = await conversationRepository.createConversationWithMessage(
     productId,
     [buyerId, product.sellerId],
     buyerId,
@@ -76,6 +78,7 @@ export const createConversation = async (
       sender,
       product: conversation.product,
       conversationId: conversation.id,
+      messageId: message.id,
     });
   }
 
@@ -103,7 +106,21 @@ export const getUserConversations = async (
       userId
     );
 
+  const counts = await conversationReadRepository.countUnreadByConversation(userId);
+  const unread = new Map(counts.map((row) => [row.conversationId, row.unreadCount]));
   return conversations.map((conversation) =>
-    toConversationListDTO(conversation, userId)
+    toConversationListDTO(conversation, userId, unread.get(conversation.id) ?? 0)
   );
+};
+
+export const markConversationRead = async (conversationId: string, userId: string, messageId: string) => {
+  const conversation = await ensureConversationExists(conversationId);
+  ensureParticipant(conversation.participants, userId);
+  const message = await messageRepository.findMessageById(messageId);
+  if (!message || message.conversationId !== conversationId) {
+    throw new AppError("Message does not belong to this conversation", 400);
+  }
+  const result = await conversationReadRepository.markConversationRead(conversationId, userId, messageId);
+  if (!result) throw new AppError("You are not a participant in this conversation.", 403);
+  return result;
 };

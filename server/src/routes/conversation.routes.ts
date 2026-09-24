@@ -6,6 +6,7 @@ import { validate } from "../middleware/validationMiddleware";
 import {
   createConversationParamsSchema,
   getConversationParamsSchema,
+  markConversationReadSchema,
 } from "../validators/conversation.validator";
 
 import { sendMessageSchema } from "../validators/message.validator";
@@ -31,6 +32,14 @@ router.get(
   authMiddleware,
   validate(getConversationParamsSchema, "params"),
   conversationController.getConversationById
+);
+
+router.patch(
+  "/conversations/:conversationId/read",
+  authMiddleware,
+  validate(getConversationParamsSchema, "params"),
+  validate(markConversationReadSchema),
+  conversationController.markConversationRead
 );
 
 export default router;

@@ -26,8 +26,8 @@ export const findMessagesByConversation = (
 ) => {
   return prisma.message.findMany({
     where: { conversationId },
-    orderBy: {
-      createdAt: "asc",
-    },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 };
+
+export const findMessageById = (id: string) => prisma.message.findUnique({ where: { id } });

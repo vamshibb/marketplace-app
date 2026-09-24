@@ -71,16 +71,17 @@ export const createConversationWithMessage = async (
           },
         });
 
-        await createMessageAndUpdateLastMessageAt({
+        const message = await createMessageAndUpdateLastMessageAt({
           conversationId: conversation.id,
           senderId,
           content,
         }, transaction);
 
-        return transaction.conversation.findUniqueOrThrow({
+        const savedConversation = await transaction.conversation.findUniqueOrThrow({
           where: { id: conversation.id },
           include: conversationInclude,
         });
+        return { conversation: savedConversation, message };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) {
@@ -104,9 +105,7 @@ export const findUserConversations = (
     include: {
       ...conversationInclude,
       messages: {
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: 1,
       },
     },

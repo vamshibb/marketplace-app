@@ -78,6 +78,7 @@ export const sendMessage = async (
       sender,
       product: conversation.product,
       conversationId,
+      messageId: message.id,
     });
   }
 

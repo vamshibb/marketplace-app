@@ -1,6 +1,18 @@
 import { userSummarySelect } from "./user.select";
 import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma/client";
+import { isMessageRead, lockParticipant } from "./conversationRead.repository";
+
+export const createMessageNotification = (
+  data: Prisma.NotificationUncheckedCreateInput,
+  conversationId: string,
+  messageId: string,
+) => prisma.$transaction(async (tx) => {
+  const participants = await lockParticipant(tx, conversationId, data.recipientId);
+  if (!participants.length) return null;
+  const isRead = await isMessageRead(tx, conversationId, data.recipientId, messageId);
+  return tx.notification.create({ data: { ...data, isRead } });
+});
 
 const notificationSelect = {
   id: true,

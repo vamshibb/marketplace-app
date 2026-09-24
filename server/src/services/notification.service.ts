@@ -35,6 +35,7 @@ export interface MessageNotificationPayload {
     title: string;
   };
   conversationId: string;
+  messageId: string;
 }
 
 export interface OrderNotificationPayload {
@@ -86,6 +87,7 @@ const buildMessageNotification = (
     ),
     metadata: {
       conversationId: payload.conversationId,
+      messageId: payload.messageId,
       productId: payload.product.id,
     },
   };
@@ -197,7 +199,11 @@ export const notifyMessage = async (
 
   const notification = buildMessageNotification(payload);
 
-  await safeCreateNotification(notification);
+  try {
+    await notificationRepository.createMessageNotification(notification, payload.conversationId, payload.messageId);
+  } catch (error) {
+    console.error("Failed to create notification", error);
+  }
 };
 
 export const notifyOrderCreated = async (

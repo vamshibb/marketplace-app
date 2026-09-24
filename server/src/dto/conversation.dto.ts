@@ -29,6 +29,7 @@ interface ConversationListSource extends ConversationSource {
 }
 
 export interface ConversationListDTO {
+  unreadCount: number;
   id: string;
   product: ProductSummary | null;
   otherParticipant: UserSummary | null;
@@ -46,8 +47,10 @@ export interface ConversationDTO {
 
 export const toConversationListDTO = (
   conversation: ConversationListSource,
-  currentUserId: string
+  currentUserId: string,
+  unreadCount: number
 ): ConversationListDTO => ({
+  unreadCount,
   id: conversation.id,
   product: conversation.product,
   otherParticipant:

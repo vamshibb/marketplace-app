@@ -7,3 +7,7 @@ export const createConversationParamsSchema = z.object({
 export const getConversationParamsSchema = z.object({
   conversationId: z.string().trim().min(1),
 });
+
+export const markConversationReadSchema = z.object({
+  lastReadMessageId: z.string().trim().min(1),
+});
