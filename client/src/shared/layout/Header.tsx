@@ -1,7 +1,8 @@
-import { Bell, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useAuthStore, useCurrentUserQuery, useLogout } from "../../features/auth";
+import { NotificationBell } from "../../features/notifications";
 
 const navLinkClassName = ({ isActive }: { isActive: boolean }): string =>
   `whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isActive ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50 hover:text-blue-600"}`;
@@ -48,15 +49,7 @@ export const Header = () => {
           <div className="ml-auto flex min-w-0 items-center gap-1">
             {isAuthenticated ? (
               <>
-              <button
-                type="button"
-                disabled
-                aria-label="Notifications (coming soon)"
-                title="Notifications coming soon"
-                className="relative flex size-9 shrink-0 items-center justify-center rounded-full text-slate-400"
-              >
-                <Bell className="size-5" aria-hidden="true" />
-              </button>
+              <NotificationBell key={currentUser?.id ?? "loading"} userId={currentUser?.id ?? ""} />
               <details
                 className="relative min-w-0"
                 onKeyDown={(event) => {
