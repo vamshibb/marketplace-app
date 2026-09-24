@@ -4,6 +4,7 @@ import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type {
   Pagination,
+  ProductMedia,
   ProductFilters,
   ProductFormRequest,
   ProductDetail,
@@ -87,4 +88,13 @@ export const updateProduct = async (
 
 export const deleteProduct = async (id: string): Promise<void> => {
   await api.delete(`/products/${id}`);
+};
+
+export const uploadProductMedia = async (id: string, files: File[]): Promise<ProductMedia[]> => {
+  const body = new FormData();
+  files.forEach((file) => body.append("media", file));
+  const response = await api.post<ApiResponse<ProductMedia[]>>(`/products/${id}/media`, body, {
+    headers: { "Content-Type": undefined },
+  });
+  return response.data.data;
 };

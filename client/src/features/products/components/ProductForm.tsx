@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "../../../shared/ui/Button";
@@ -23,6 +23,9 @@ interface ProductFormProps {
   submitLabel: string;
   pendingLabel: string;
   errorMessage?: string;
+  mediaPanel?: ReactNode;
+  onCancel?: () => void;
+  detailsDisabled?: boolean;
 }
 
 export const ProductForm = ({
@@ -30,7 +33,11 @@ export const ProductForm = ({
   onSubmit,
   isPending,
   submitLabel,
+  pendingLabel,
   errorMessage,
+  mediaPanel,
+  onCancel,
+  detailsDisabled = false,
 }: ProductFormProps) => {
   const categoriesQuery = useCategoriesQuery();
   const {
@@ -56,6 +63,9 @@ export const ProductForm = ({
       )}
 
       <form className="space-y-4" noValidate onSubmit={handleSubmit(onSubmit)}>
+        <div className={mediaPanel ? "grid items-stretch gap-5 lg:grid-cols-2" : undefined}>
+        <fieldset disabled={isPending || detailsDisabled} className={mediaPanel ? "flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_label]:mb-1.5 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-300 [&_input]:px-3 [&_input]:py-2.5 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-300 [&_select]:px-3 [&_select]:py-2.5 [&_textarea]:min-h-36 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:px-3 [&_textarea]:py-2.5 [&_p]:text-sm [&_p]:text-red-600" : "space-y-4"}>
+        {mediaPanel && <h2 className="text-lg font-semibold text-slate-900">Listing details</h2>}
         <div>
           <label htmlFor="title">Title</label>
           <input
@@ -72,7 +82,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div>
+        <div className={mediaPanel ? "order-3" : undefined}>
           <label htmlFor="description">Description</label>
           <textarea
             id="description"
@@ -89,7 +99,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div>
+        <div className={mediaPanel ? "order-2" : undefined}>
           <label htmlFor="price">Price</label>
           <input
             id="price"
@@ -106,7 +116,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div>
+        <div className={mediaPanel ? "order-1" : undefined}>
           <label htmlFor="categoryId">Category</label>
           <select
             id="categoryId"
@@ -139,9 +149,15 @@ export const ProductForm = ({
           )}
         </div>
 
-        <Button type="submit" isLoading={isPending}>
-          {submitLabel}
+        </fieldset>
+        {mediaPanel}
+        </div>
+        <div className={mediaPanel ? "flex justify-end gap-3" : undefined}>
+        {onCancel && <Button variant="secondary" disabled={isPending} onClick={onCancel}>Cancel</Button>}
+        <Button type="submit" disabled={isPending} aria-busy={isPending || undefined}>
+          {isPending ? pendingLabel : submitLabel}
         </Button>
+        </div>
       </form>
     </>
   );
