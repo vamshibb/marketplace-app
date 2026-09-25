@@ -2,20 +2,25 @@ import { useEffect, useId, useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
 import { Button } from "../../../shared/ui/Button";
-import { orderRequestSchema, type OrderRequestValues } from "../schemas/orderRequestSchema";
+import { createOrderRequestSchema, type OrderRequestValues } from "../schemas/orderRequestSchema";
 import { useCreateOrderMutation } from "../hooks/useCreateOrderMutation";
+import { rentalDuration } from "../utils/rentalDuration";
 import type { OrderRequestProduct } from "./RequestOrderButton";
 
 export const OrderRequestModal = ({ product, onClose }: { product: OrderRequestProduct; onClose: () => void }) => {
+  const isRental = product.listingType === "RENT";
   const dialogRef = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const id = useId();
   const mutation = useCreateOrderMutation(product.id, product.sellerId, onClose);
   const { register, control, handleSubmit, formState: { errors } } = useForm<OrderRequestValues>({
-    resolver: zodResolver(orderRequestSchema), defaultValues: { quantity: 1, notes: "" },
+    resolver: zodResolver(createOrderRequestSchema(product)), defaultValues: { quantity: 1, notes: "" },
   });
   const quantity = useWatch({ control, name: "quantity" });
-  const total = Number.isInteger(quantity) && quantity > 0 ? Math.round(product.price * 100) * quantity / 100 : null;
+  const [from, to] = useWatch({ control, name: ["requestedFrom", "requestedTo"] });
+  const days = isRental ? rentalDuration(from, to) : 1;
+  const total = Number.isInteger(quantity) && quantity > 0 && days !== null
+    ? Math.round(product.price * 100) * quantity * days / 100 : null;
   const money = (value: number) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -32,20 +37,32 @@ export const OrderRequestModal = ({ product, onClose }: { product: OrderRequestP
   const submit = async (values: OrderRequestValues) => {
     if (submitting.current || mutation.isPending) return;
     submitting.current = true;
-    try { await mutation.mutateAsync(values); }
+    try { await mutation.mutateAsync(isRental ? values : { quantity: values.quantity, notes: values.notes }); }
     catch { /* Mutation supplies toast; keep the entered values. */ }
     finally { submitting.current = false; }
   };
   return <dialog ref={dialogRef} aria-labelledby={id + "-heading"}
     onCancel={event => { event.preventDefault(); if (!submitting.current) onClose(); }}
     className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-xl bg-white p-6 shadow-xl backdrop:bg-black/50">
-    <h2 id={id + "-heading"} className="text-xl font-semibold text-slate-900">Request Order</h2>
+    <h2 id={id + "-heading"} className="text-xl font-semibold text-slate-900">{isRental ? "Request Rental" : "Request Purchase"}</h2>
     <p className="mt-2 font-medium wrap-anywhere text-slate-800">{product.title}</p>
-    <p className="mt-1 text-sm text-slate-500">Unit price: {money(product.price)}</p>
+    <p className="mt-1 text-sm text-slate-500">{isRental ? "Price per day" : "Unit price"}: {money(product.price)}</p>
     <form noValidate onSubmit={event => { void handleSubmit(submit)(event); }} className="mt-4 space-y-4">
+      {isRental && <>
+        <div className="grid grid-cols-2 gap-3">
+          {(["requestedFrom", "requestedTo"] as const).map(name => <div key={name}>
+            <label htmlFor={id + name} className="mb-1 block text-sm font-medium">{name === "requestedFrom" ? "From date" : "Return date"}</label>
+            <input id={id + name} type="date" disabled={mutation.isPending} {...register(name)}
+              aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? id + name + "-error" : undefined}
+              className="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-600" />
+            {errors[name] && <p id={id + name + "-error"} role="alert" className="mt-1 text-sm text-red-600">{errors[name]?.message}</p>}
+          </div>)}
+        </div>
+        <p aria-live="polite" className="text-sm text-slate-600">Duration: {days === null ? "Choose a date range" : `${days} ${days === 1 ? "day" : "days"}`}</p>
+      </>}
       <div>
         <label htmlFor={id + "-quantity"} className="mb-1 block text-sm font-medium">Quantity</label>
-        <input id={id + "-quantity"} type="number" min={1} step={1} disabled={mutation.isPending}
+        <input id={id + "-quantity"} type="number" min={1} max={isRental ? product.quantityAvailable : undefined} step={1} disabled={mutation.isPending}
           {...register("quantity", { valueAsNumber: true })}
           aria-invalid={Boolean(errors.quantity)} aria-describedby={errors.quantity ? id + "-quantity-error" : undefined}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-600" />
@@ -58,7 +75,7 @@ export const OrderRequestModal = ({ product, onClose }: { product: OrderRequestP
           className="w-full rounded-lg border border-slate-300 px-3 py-2 focus-visible:outline-2 focus-visible:outline-blue-600" />
         {errors.notes && <p id={id + "-notes-error"} role="alert" className="mt-1 text-sm text-red-600">{errors.notes.message}</p>}
       </div>
-      <p aria-live="polite" className="flex justify-between border-t border-slate-200 pt-3 font-semibold"><span>Total</span><span className="text-blue-600">{total === null ? "—" : money(total)}</span></p>
+      <p aria-live="polite" className="flex justify-between border-t border-slate-200 pt-3 font-semibold"><span>{isRental ? "Estimated total" : "Total"}</span><span className="text-blue-600">{total === null ? "—" : money(total)}</span></p>
       {mutation.isError && <p role="alert" className="text-sm text-red-600">Unable to send your request. Your entries have been kept.</p>}
       <div className="flex justify-end gap-2">
         <Button variant="secondary" disabled={mutation.isPending} onClick={onClose}>Cancel</Button>

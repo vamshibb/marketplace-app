@@ -99,6 +99,7 @@ export const ProductDetailPage = () => {
                     Your Listing
                   </span>
                 )}
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">{product.listingType === "RENT" ? "For Rent" : "For Sale"}</span>
               </div>
               {isOwner && (
                 <div className="ml-auto flex shrink-0 flex-wrap gap-2">
@@ -126,10 +127,16 @@ export const ProductDetailPage = () => {
 
               <p className="text-3xl font-semibold tracking-tight wrap-anywhere text-blue-600">
                 ${product.price.toLocaleString()}
+                {product.listingType === "RENT" && <span className="text-base font-medium"> / day</span>}
               </p>
             </div>
 
             <dl className="space-y-2 border-t border-slate-200 pt-3 text-sm">
+              {product.listingType === "RENT" && <>
+                <div className="flex justify-between gap-2"><dt className="text-slate-500">Quantity available</dt><dd className="text-slate-700">{product.quantityAvailable}</dd></div>
+                {product.minRentalDays != null && <div className="flex justify-between gap-2"><dt className="text-slate-500">Minimum rental days</dt><dd className="text-slate-700">{product.minRentalDays}</dd></div>}
+                {product.maxRentalDays != null && <div className="flex justify-between gap-2"><dt className="text-slate-500">Maximum rental days</dt><dd className="text-slate-700">{product.maxRentalDays}</dd></div>}
+              </>}
               <div className="space-y-1">
                 <dt className="flex items-center gap-2 font-medium text-slate-500"><UserRound className="size-4" aria-hidden="true" />Seller</dt>
                 <dd className="wrap-anywhere text-slate-700">{product.seller.displayName ?? product.seller.email}</dd>

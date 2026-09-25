@@ -20,6 +20,9 @@ export const ProductCard = ({ product }: ProductCardProps): ReactElement => (
         </span>
       )}
       <WishlistButton product={product} />
+      <span className="absolute bottom-2 left-3 rounded-full bg-white/95 px-2 py-0.5 text-xs font-medium text-blue-700">
+        {product.listingType === "RENT" ? "For Rent" : "For Sale"}
+      </span>
     </div>
 
     <div className="flex flex-1 flex-col gap-1.5 px-4 py-2.5">
@@ -44,8 +47,9 @@ export const ProductCard = ({ product }: ProductCardProps): ReactElement => (
     </div>
 
     <footer className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-1.5">
-      <p title={`$${product.price.toLocaleString()}`} className="min-w-0 truncate text-lg leading-6 font-semibold tracking-tight text-gray-950 @sm:text-xl">
+      <p title={`$${product.price.toLocaleString()}${product.listingType === "RENT" ? " / day" : ""}`} className="min-w-0 truncate text-lg leading-6 font-semibold tracking-tight text-gray-950 @sm:text-xl">
         ${product.price.toLocaleString()}
+        {product.listingType === "RENT" && <span className="text-xs font-normal"> / day</span>}
       </p>
       <Link
         to={`/products/${product.id}`}
