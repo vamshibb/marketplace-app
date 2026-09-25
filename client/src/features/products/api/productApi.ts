@@ -4,6 +4,7 @@ import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type {
   Pagination,
+  ListingSettings,
   ProductMedia,
   ProductFilters,
   ProductFormRequest,
@@ -16,7 +17,7 @@ interface ProductsApiResponse extends ApiResponse<ProductSummary[]> {
   pagination: Pagination;
 }
 
-export interface CreatedProduct {
+export interface CreatedProduct extends ListingSettings {
   id: string;
   title: string;
   description: string;

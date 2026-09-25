@@ -1,6 +1,13 @@
 import type { UserSummary } from "../auth";
 
 export type ProductSeller = UserSummary;
+export type ListingType = "SALE" | "RENT";
+export interface ListingSettings {
+  listingType: ListingType;
+  quantityAvailable: number;
+  minRentalDays?: number | null;
+  maxRentalDays?: number | null;
+}
 
 export interface ProductCategory {
   id: string;
@@ -26,7 +33,7 @@ export interface ProductReview {
   user: ProductSeller;
 }
 
-export interface ProductSummary {
+export interface ProductSummary extends ListingSettings {
   id: string;
   title: string;
   description: string;
@@ -46,7 +53,7 @@ export interface ProductDetail extends ProductSummary {
   averageRating: number;
 }
 
-export interface ProductFormRequest {
+export interface ProductFormRequest extends ListingSettings {
   title: string;
   description: string;
   price: number;

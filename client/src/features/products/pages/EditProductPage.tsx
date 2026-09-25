@@ -50,6 +50,10 @@ export const EditProductPage = () => {
           description: product.description,
           price: product.price,
           categoryId: product.categoryId ?? "",
+          listingType: product.listingType,
+          quantityAvailable: product.quantityAvailable,
+          minRentalDays: product.minRentalDays ?? null,
+          maxRentalDays: product.maxRentalDays ?? null,
         }}
         onSubmit={onSubmit}
         isPending={updateProductMutation.isPending}

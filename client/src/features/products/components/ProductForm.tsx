@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
+import type { ListingSettings } from "../types";
 
 import { Button } from "../../../shared/ui/Button";
 import { useCategoriesQuery } from "../../categories/hooks/useCategoriesQuery";
@@ -9,7 +10,7 @@ import {
   type ProductFormValues,
 } from "../schemas/productSchema";
 
-export interface ProductFormInitialValues {
+export interface ProductFormInitialValues extends ListingSettings {
   title: string;
   description: string;
   price: number | undefined;
@@ -44,11 +45,15 @@ export const ProductForm = ({
     register,
     handleSubmit,
     reset,
+    control,
+    setValue,
+    clearErrors,
     formState: { errors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: initialValues,
   });
+  const listingType = useWatch({ control, name: "listingType" });
 
   useEffect(() => {
     reset(initialValues);
@@ -62,10 +67,29 @@ export const ProductForm = ({
         </p>
       )}
 
-      <form className="space-y-4" noValidate onSubmit={handleSubmit(onSubmit)}>
+      <form className="space-y-4" noValidate onSubmit={handleSubmit(values => onSubmit({
+        ...values,
+        minRentalDays: values.listingType === "SALE" ? null : values.minRentalDays ?? null,
+        maxRentalDays: values.listingType === "SALE" ? null : values.maxRentalDays ?? null,
+      }))}>
         <div className={mediaPanel ? "grid items-stretch gap-5 lg:grid-cols-2" : undefined}>
         <fieldset disabled={isPending || detailsDisabled} className={mediaPanel ? "flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_label]:mb-1.5 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-300 [&_input]:px-3 [&_input]:py-2.5 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-300 [&_select]:px-3 [&_select]:py-2.5 [&_textarea]:min-h-36 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:px-3 [&_textarea]:py-2.5 [&_p]:text-sm [&_p]:text-red-600" : "space-y-4"}>
         {mediaPanel && <h2 className="text-lg font-semibold text-slate-900">Listing details</h2>}
+        <div role="group" aria-label="Listing type" className="flex gap-1 self-start rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <input type="hidden" {...register("listingType")} />
+          {(["SALE", "RENT"] as const).map(type => (
+            <button key={type} type="button" aria-pressed={listingType === type}
+              className="rounded-md px-4 py-1.5 text-sm font-medium text-slate-600 aria-pressed:bg-white aria-pressed:text-blue-600 aria-pressed:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-600"
+              onClick={() => {
+                setValue("listingType", type, { shouldDirty: true });
+                if (type === "SALE") {
+                  setValue("minRentalDays", null);
+                  setValue("maxRentalDays", null);
+                  clearErrors(["minRentalDays", "maxRentalDays"]);
+                }
+              }}>{type === "SALE" ? "For Sale" : "For Rent"}</button>
+          ))}
+        </div>
         <div>
           <label htmlFor="title">Title</label>
           <input
@@ -82,7 +106,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className={mediaPanel ? "order-3" : undefined}>
+        <div className={mediaPanel ? "order-5" : undefined}>
           <label htmlFor="description">Description</label>
           <textarea
             id="description"
@@ -100,7 +124,7 @@ export const ProductForm = ({
         </div>
 
         <div className={mediaPanel ? "order-2" : undefined}>
-          <label htmlFor="price">Price</label>
+          <label htmlFor="price">{listingType === "RENT" ? "Price per day" : "Price"}</label>
           <input
             id="price"
             type="number"
@@ -149,6 +173,24 @@ export const ProductForm = ({
           )}
         </div>
 
+        <div className={mediaPanel ? "order-3" : undefined}>
+          <label htmlFor="quantityAvailable">Quantity available</label>
+          <input id="quantityAvailable" type="number" min={1} step={1}
+            aria-invalid={Boolean(errors.quantityAvailable)} aria-describedby={errors.quantityAvailable ? "quantity-error" : undefined}
+            {...register("quantityAvailable", { valueAsNumber: true })} />
+          {errors.quantityAvailable && <p id="quantity-error" role="alert">{errors.quantityAvailable.message}</p>}
+        </div>
+        {listingType === "RENT" && <div className="order-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {(["minRentalDays", "maxRentalDays"] as const).map(name => (
+            <div key={name}>
+              <label htmlFor={name}>{name === "minRentalDays" ? "Minimum rental days" : "Maximum rental days"} (optional)</label>
+              <input id={name} type="number" min={1} step={1}
+                aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `${name}-error` : undefined}
+                {...register(name, { setValueAs: value => value === "" || value == null ? null : Number(value) })} />
+              {errors[name] && <p id={`${name}-error`} role="alert">{errors[name]?.message}</p>}
+            </div>
+          ))}
+        </div>}
         </fieldset>
         {mediaPanel}
         </div>
