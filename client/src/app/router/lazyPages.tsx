@@ -1,4 +1,5 @@
 import { lazy } from "react";
+export const OrdersPage = lazy(() => import("../../features/orders").then((module) => ({ default: module.OrdersPage })));
 
 export const LoginPage = lazy(() => import("../../features/auth/pages/LoginPage").then((module) => ({ default: module.LoginPage })));
 export const RegisterPage = lazy(() => import("../../features/auth/pages/RegisterPage").then((module) => ({ default: module.RegisterPage })));

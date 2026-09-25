@@ -42,6 +42,7 @@ export const Header = () => {
                   Wishlist
                 </NavLink>
                 <NavLink to="/messages" className={navLinkClassName}>Messages</NavLink>
+                <NavLink to="/orders" className={navLinkClassName}>Orders</NavLink>
               </>
             )}
           </nav>
