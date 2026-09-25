@@ -22,8 +22,13 @@ export const OrderCard = ({ order, role }: { order: Order; role: OrderRole }) =>
         <div><dt className="text-slate-500">Total</dt><dd className="mt-1 font-semibold text-blue-600">{formatPrice(Math.round(price * 100) * order.quantity / 100)}</dd></div>
         <div><dt className="text-slate-500">Created</dt><dd className="mt-1 text-slate-800"><time dateTime={order.createdAt}>{new Date(order.createdAt).toLocaleDateString()}</time></dd></div>
       </dl>
+      {order.notes?.trim() && (
+        <div className="space-y-1 border-t border-slate-100 pt-3 text-sm">
+          <h3 className="font-medium text-slate-700">Notes</h3>
+          <p className="whitespace-pre-wrap wrap-anywhere text-slate-600">{order.notes}</p>
+        </div>
+      )}
       <OrderActions order={order} role={role} />
     </article>
   );
 };
-
