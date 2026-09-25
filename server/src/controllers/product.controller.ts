@@ -17,7 +17,7 @@ export const createProduct = async (
       title,
       description,
       price,
-      categoryId,
+      categoryId, listingType, quantityAvailable, minRentalDays, maxRentalDays,
     } = req.body;
 
     const product =
@@ -27,6 +27,7 @@ export const createProduct = async (
       price: Number(price),
       categoryId,
       sellerId: req.user!.id,
+      listingType, quantityAvailable, minRentalDays, maxRentalDays,
       });
 
     return res

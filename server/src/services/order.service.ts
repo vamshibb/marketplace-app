@@ -1,3 +1,4 @@
+import { validateRentalRequest } from "./rentalRules";
 import {
   OrderStatus,
   Prisma,
@@ -101,7 +102,7 @@ const ensureProductCanBeOrdered = async (
     );
   }
 
-  const activeOrder =
+  const activeOrder = product.listingType === "RENT" ? null :
     await orderRepository.findActiveOrderByBuyerAndProduct(
       buyerId,
       productId
@@ -130,6 +131,7 @@ const buildOrderCreateInput = (
     productId: product.id,
     productTitle: product.title,
     unitPrice: product.price,
+    transactionType: product.listingType,
     quantity: data.quantity ?? 1,
     requestedFrom: data.requestedFrom,
     requestedTo: data.requestedTo,
@@ -146,6 +148,10 @@ export const createOrder = async (
     productId,
     buyerId
   );
+
+  if (product.listingType === "RENT") {
+    data = { ...data, ...validateRentalRequest(product, data) };
+  }
 
   const buyer = await ensureUserExists(buyerId);
 
@@ -179,12 +185,21 @@ export const acceptOrder = async (
   ensureSeller(order, sellerId);
   ensurePendingOrder(order, "accepted");
 
-  const updatedOrder = await orderRepository.updateOrderStatus(
-    orderId,
-    OrderStatus.ACCEPTED,
-    OrderStatus.PENDING,
-    { sellerId }
-  );
+  let updatedOrder;
+  if (order.transactionType === "RENT") {
+    const result = await orderRepository.acceptRentalOrder(orderId, sellerId);
+    if (result.kind === "unavailable") {
+      throw new AppError("Rental availability conflict: insufficient quantity for these dates.", 409);
+    }
+    if (result.kind === "conflict") {
+      throw new AppError("Order changed concurrently. Please refresh and try again.", 409);
+    }
+    updatedOrder = result.order;
+  } else {
+    updatedOrder = await orderRepository.updateOrderStatus(
+      orderId, OrderStatus.ACCEPTED, OrderStatus.PENDING, { sellerId }
+    );
+  }
   if (!updatedOrder) throw new AppError("Only pending orders can be accepted.", 409);
 
   const seller = await ensureUserExists(sellerId);

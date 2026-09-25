@@ -1,6 +1,6 @@
 import type { UserSummary } from "./user.dto";
 
-import { OrderStatus } from "../generated/prisma";
+import { OrderStatus, ListingType } from "../generated/prisma";
 
 interface OrderProductSummary {
   id: string;
@@ -10,6 +10,7 @@ interface OrderProductSummary {
 interface OrderSource {
   id: string;
   status: OrderStatus;
+  transactionType: ListingType;
   quantity: number;
   unitPrice: {
     toString(): string;
@@ -27,6 +28,7 @@ interface OrderSource {
 export interface OrderDTO {
   id: string;
   status: OrderStatus;
+  transactionType: ListingType;
   quantity: number;
   unitPrice: string;
   product: OrderProductSummary;
@@ -45,6 +47,7 @@ export const toOrderDTO = (
   return {
     id: order.id,
     status: order.status,
+    transactionType: order.transactionType,
     quantity: order.quantity,
     unitPrice: order.unitPrice.toString(),
     product: order.product,

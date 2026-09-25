@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { rentalSettingsSchema, updateProductSchema } from "../validators/productValidators";
 import {
   Prisma,
   ProductMedia,
@@ -38,6 +40,7 @@ const validateProductOwnership = async (
       403
     );
   }
+  return product;
 };
 
 const listProducts = async (
@@ -102,12 +105,18 @@ export const createProduct = async (
 
 export const updateProduct = async (
   id: string,
-  data: Prisma.ProductUncheckedUpdateInput,
+  data: z.infer<typeof updateProductSchema>,
   userId: string
 ) => {
-  await validateProductOwnership(id, userId);
-
-  return productRepository.updateProduct(id, data);
+  const current = await validateProductOwnership(id, userId);
+  const parsed = updateProductSchema.parse(data);
+  const settings = rentalSettingsSchema.safeParse({
+    listingType: parsed.listingType ?? current.listingType,
+    minRentalDays: parsed.minRentalDays === undefined ? current.minRentalDays : parsed.minRentalDays,
+    maxRentalDays: parsed.maxRentalDays === undefined ? current.maxRentalDays : parsed.maxRentalDays,
+  });
+  if (!settings.success) throw new AppError(settings.error.issues[0].message, 400);
+  return productRepository.updateProduct(id, parsed);
 };
 
 export const deleteProduct = async (
