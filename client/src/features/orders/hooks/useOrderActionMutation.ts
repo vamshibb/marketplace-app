@@ -29,18 +29,20 @@ export const useOrderActionMutation = (orderId: string) => {
     onSuccess: async ({ order, userId, token }, action) => {
       if (useAuthStore.getState().token !== token) return;
       const keys = [ordersQueryKeys.list(userId, "buyer"), ordersQueryKeys.list(userId, "seller")];
-      await Promise.all(keys.map(queryKey => client.cancelQueries({ queryKey, exact: true })));
+      await Promise.all([...keys, ordersQueryKeys.detail(userId, order.id)].map(queryKey => client.cancelQueries({ queryKey, exact: true })));
       if (useAuthStore.getState().token !== token) return;
       for (const queryKey of keys) {
         client.setQueryData<Order[]>(queryKey, current =>
           current?.map(item => item.id === order.id ? order : item));
       }
       toast.success(successMessages[action]);
+      client.setQueryData(ordersQueryKeys.detail(userId, order.id), order);
     },
     onError: (error) => {
       const message: unknown = isAxiosError(error) ? error.response?.data?.message : undefined;
       toast.error(typeof message === "string" ? message : error.message || "Unable to update order.");
       if (user && isAxiosError(error) && error.response?.status === 409) {
+        void client.invalidateQueries({ queryKey: ordersQueryKeys.detail(user.id, orderId) });
         void client.invalidateQueries({ queryKey: ordersQueryKeys.list(user.id, "buyer") });
         void client.invalidateQueries({ queryKey: ordersQueryKeys.list(user.id, "seller") });
       }

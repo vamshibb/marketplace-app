@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationsQuery, useUnreadCountQuery } from "../hooks/useNotificationQueries";
 import { useMarkAllNotificationsReadMutation, useMarkNotificationReadMutation } from "../hooks/useNotificationMutations";
 import type { Notification } from "../types";
+import { useOrderNavigation } from "../../orders";
 
 export const NotificationBell = ({ userId }: { userId: string }) => {
   const [open, setOpen] = useState(false);
@@ -15,7 +16,9 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
   const list = useNotificationsQuery(userId, open);
   const markRead = useMarkNotificationReadMutation(userId);
   const markAll = useMarkAllNotificationsReadMutation(userId);
-  const pending = markRead.isPending || markAll.isPending;
+  const openOrder = useOrderNavigation(userId);
+  const selecting = useRef(false);
+  const pending = markRead.isPending || markAll.isPending || openOrder.isPending;
   const unread = count.data ?? 0;
 
   useEffect(() => {
@@ -38,6 +41,8 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
   }, [open]);
 
   const select = async (notification: Notification) => {
+    if (selecting.current || pending) return;
+    selecting.current = true;
     try {
       if (!notification.isRead) await markRead.mutateAsync(notification.id);
       const conversationId = notification.metadata?.conversationId;
@@ -45,9 +50,14 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
         setOpen(false);
         navigate(`/messages/${encodeURIComponent(conversationId)}`);
       }
+      const orderId = notification.metadata?.orderId;
+      if (notification.type === "ORDER" && typeof orderId === "string" && orderId.trim()) {
+        await openOrder.mutateAsync(orderId);
+        setOpen(false);
+      }
     } catch {
       // Mutation error is displayed in the panel; keep it open for retry.
-    }
+    } finally { selecting.current = false; }
   };
 
   return (
@@ -108,4 +118,3 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
     </div>
   );
 };
-

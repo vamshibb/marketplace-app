@@ -17,6 +17,11 @@ export const updateOrderStatus = async (id: string, action: OrderAction): Promis
   return response.data.data;
 };
 
+export const getOrder = async (id: string, signal?: AbortSignal): Promise<Order> => {
+  const response = await api.get<ApiResponse<Order>>(`/orders/${encodeURIComponent(id)}`, { signal });
+  return response.data.data;
+};
+
 export const getOrders = async (role: OrderRole, signal?: AbortSignal): Promise<Order[]> => {
   const response = await api.get<ApiResponse<Order[]>>(`/orders/${role}`, { signal });
   return response.data.data;
