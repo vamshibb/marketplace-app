@@ -1,5 +1,6 @@
 import { CalendarDays, UserRound } from "lucide-react";
 import { ContactSellerButton } from "../../messaging";
+import { RequestOrderButton } from "../../orders";
 import { WishlistButton } from "../components/WishlistButton";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -153,6 +154,7 @@ export const ProductDetailPage = () => {
                     <WishlistButton product={product} />
                   </div>}
                   <ContactSellerButton productId={product.id} sellerId={product.sellerId} sellerLabel={product.seller.displayName ?? product.seller.email} />
+                  <RequestOrderButton key={product.id} product={product} />
                 </div>
               )}
 

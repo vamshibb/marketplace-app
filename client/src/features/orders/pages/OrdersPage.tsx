@@ -1,11 +1,17 @@
-import { useRef, useState, type KeyboardEvent } from "react";
-import { Link } from "react-router-dom";
+import { useRef, type KeyboardEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useOrdersQuery } from "../hooks/useOrdersQuery";
 import { OrderCard } from "../components/OrderCard";
 import type { OrderRole } from "../types";
 
 export const OrdersPage = () => {
-  const [role, setRole] = useState<OrderRole>("buyer");
+  const [params, setParams] = useSearchParams();
+  const role: OrderRole = params.get("tab") === "sales" ? "seller" : "buyer";
+  const setRole = (value: OrderRole) => setParams(previous => {
+    const next = new URLSearchParams(previous);
+    next.set("tab", value === "buyer" ? "purchases" : "sales");
+    return next;
+  }, { replace: true });
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);
   const orders = useOrdersQuery(role);
   const roles: OrderRole[] = ["buyer", "seller"];
@@ -50,4 +56,3 @@ export const OrdersPage = () => {
     </section>
   );
 };
-
