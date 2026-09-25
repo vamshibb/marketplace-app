@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Order, OrderRole } from "../types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
+import { OrderActions } from "./OrderActions";
 
 export const OrderCard = ({ order, role }: { order: Order; role: OrderRole }) => {
   const counterpart = role === "buyer" ? order.seller : order.buyer;
@@ -21,6 +22,7 @@ export const OrderCard = ({ order, role }: { order: Order; role: OrderRole }) =>
         <div><dt className="text-slate-500">Total</dt><dd className="mt-1 font-semibold text-blue-600">{formatPrice(Math.round(price * 100) * order.quantity / 100)}</dd></div>
         <div><dt className="text-slate-500">Created</dt><dd className="mt-1 text-slate-800"><time dateTime={order.createdAt}>{new Date(order.createdAt).toLocaleDateString()}</time></dd></div>
       </dl>
+      <OrderActions order={order} role={role} />
     </article>
   );
 };

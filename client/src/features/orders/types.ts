@@ -2,6 +2,7 @@ import type { UserSummary } from "../auth";
 
 export type OrderStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "COMPLETED";
 export type OrderRole = "buyer" | "seller";
+export type OrderAction = "accept" | "reject" | "cancel" | "complete";
 export interface Order {
   id: string;
   status: OrderStatus;
