@@ -9,6 +9,8 @@ import type { Order, OrderAction } from "../types";
 const successMessages: Record<OrderAction, string> = {
   accept: "Order accepted.", reject: "Order rejected.",
   cancel: "Order cancelled.", complete: "Order completed.",
+  start: "Rental started.", return: "Rental marked returned.",
+  "confirm-return": "Return confirmed.",
 };
 
 export const useOrderActionMutation = (orderId: string) => {
@@ -46,4 +48,3 @@ export const useOrderActionMutation = (orderId: string) => {
   });
   return { ...mutation, isPending: mutation.isPending || pendingCount > 0 };
 };
-
