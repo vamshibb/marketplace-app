@@ -153,10 +153,11 @@ export const updateOrderStatus = async (
   status: OrderStatus,
   expectedStatus: OrderStatus,
   actor: { buyerId: string } | { sellerId: string },
+  transactionType?: "SALE" | "RENT",
 ) => {
   try {
     return await prisma.order.update({
-      where: { id, status: expectedStatus, ...actor },
+      where: { id, status: expectedStatus, ...actor, transactionType },
       data: { status },
       select: orderSelect,
     });

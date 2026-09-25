@@ -159,3 +159,24 @@ export const completeOrder = async (req: AuthRequest, res: Response, next: NextF
     next(error);
   }
 };
+
+export const startRental = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const order = await orderService.transitionRental(req.params.orderId, req.user!.id, "start");
+    return res.status(200).json(successResponse(order, "Rental started successfully"));
+  } catch (error) { next(error); }
+};
+
+export const returnRental = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const order = await orderService.transitionRental(req.params.orderId, req.user!.id, "return");
+    return res.status(200).json(successResponse(order, "Rental marked returned successfully"));
+  } catch (error) { next(error); }
+};
+
+export const confirmRentalReturn = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const order = await orderService.transitionRental(req.params.orderId, req.user!.id, "confirm-return");
+    return res.status(200).json(successResponse(order, "Rental return confirmed successfully"));
+  } catch (error) { next(error); }
+};

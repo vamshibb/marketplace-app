@@ -309,3 +309,29 @@ export const notifyOrderCompleted = async (payload: OrderNotificationPayload): P
     metadata: { orderId: payload.orderId, productId: payload.product.id },
   });
 };
+
+export const notifyRentalTransition = async (
+  payload: OrderNotificationPayload,
+  action: "start" | "return" | "confirm-return",
+): Promise<void> => {
+  if (shouldSkipNotification(payload.sender.id, payload.recipientId)) return;
+  const titles = {
+    start: "Rental Started",
+    return: "Rental Marked Returned",
+    "confirm-return": "Rental Return Confirmed",
+  };
+  const descriptions = {
+    start: "started the rental",
+    return: "marked the rental item returned",
+    "confirm-return": "confirmed the rental return",
+  };
+  await safeCreateNotification({
+    recipientId: payload.recipientId,
+    senderId: payload.sender.id,
+    type: NotificationType.ORDER,
+    title: titles[action],
+    body: `${payload.sender.email} ${descriptions[action]} for ${payload.product.title}`,
+    metadata: { orderId: payload.orderId, productId: payload.product.id },
+  });
+};
+

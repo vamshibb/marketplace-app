@@ -301,11 +301,12 @@ export const getOrder = async (
 export const completeOrder = async (orderId: string, buyerId: string) => {
   const order = await ensureOrderExists(orderId);
   ensureBuyer(order, buyerId);
+  if (order.transactionType !== "SALE") throw new AppError("Rental orders must use the rental return lifecycle.", 409);
   if (order.status !== OrderStatus.ACCEPTED) {
     throw new AppError("Only accepted orders can be completed.", 409);
   }
   const updatedOrder = await orderRepository.updateOrderStatus(
-    orderId, OrderStatus.COMPLETED, OrderStatus.ACCEPTED, { buyerId }
+    orderId, OrderStatus.COMPLETED, OrderStatus.ACCEPTED, { buyerId }, "SALE"
   );
   if (!updatedOrder) throw new AppError("Only accepted orders can be completed.", 409);
 
@@ -317,3 +318,33 @@ export const completeOrder = async (orderId: string, buyerId: string) => {
   });
   return toOrderDTO(updatedOrder);
 };
+
+type RentalAction = "start" | "return" | "confirm-return";
+const rentalTransitions = {
+  start: { from: OrderStatus.ACCEPTED, to: OrderStatus.ACTIVE, role: "seller" },
+  return: { from: OrderStatus.ACTIVE, to: OrderStatus.RETURN_PENDING, role: "buyer" },
+  "confirm-return": { from: OrderStatus.RETURN_PENDING, to: OrderStatus.COMPLETED, role: "seller" },
+} as const;
+
+export const transitionRental = async (orderId: string, userId: string, action: RentalAction) => {
+  const order = await ensureOrderExists(orderId);
+  const transition = rentalTransitions[action];
+  if (transition.role === "seller") ensureSeller(order, userId);
+  else ensureBuyer(order, userId);
+  if (order.transactionType !== "RENT" || order.status !== transition.from) {
+    throw new AppError(`Only ${transition.from} rental orders support this action.`, 409);
+  }
+  const actor = transition.role === "seller" ? { sellerId: userId } : { buyerId: userId };
+  const updated = await orderRepository.updateOrderStatus(
+    orderId, transition.to, transition.from, actor, "RENT"
+  );
+  if (!updated) throw new AppError("Order changed concurrently. Please refresh and try again.", 409);
+  await notificationService.notifyRentalTransition({
+    recipientId: transition.role === "seller" ? updated.buyerId : updated.sellerId,
+    sender: transition.role === "seller" ? updated.seller : updated.buyer,
+    product: updated.product,
+    orderId: updated.id,
+  }, action);
+  return toOrderDTO(updated);
+};
+

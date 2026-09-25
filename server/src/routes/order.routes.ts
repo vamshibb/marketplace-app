@@ -66,4 +66,25 @@ router.patch(
   orderController.completeOrder
 );
 
+router.patch(
+  "/orders/:orderId/start",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  orderController.startRental
+);
+
+router.patch(
+  "/orders/:orderId/return",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  orderController.returnRental
+);
+
+router.patch(
+  "/orders/:orderId/confirm-return",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  orderController.confirmRentalReturn
+);
+
 export default router;
