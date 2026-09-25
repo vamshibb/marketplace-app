@@ -98,13 +98,23 @@ export const createOrder = (
   });
 };
 
-export const updateOrderStatus = (
+// The status and actor predicates are part of the UPDATE, not just a prior read.
+export const updateOrderStatus = async (
   id: string,
-  status: OrderStatus
+  status: OrderStatus,
+  expectedStatus: OrderStatus,
+  actor: { buyerId: string } | { sellerId: string },
 ) => {
-  return prisma.order.update({
-    where: { id },
-    data: { status },
-    select: orderSelect,
-  });
+  try {
+    return await prisma.order.update({
+      where: { id, status: expectedStatus, ...actor },
+      data: { status },
+      select: orderSelect,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return null;
+    }
+    throw error;
+  }
 };

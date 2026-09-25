@@ -59,4 +59,11 @@ router.patch(
   orderController.cancelOrder
 );
 
+router.patch(
+  "/orders/:orderId/complete",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  orderController.completeOrder
+);
+
 export default router;

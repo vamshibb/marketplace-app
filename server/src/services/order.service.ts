@@ -181,8 +181,11 @@ export const acceptOrder = async (
 
   const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
-    OrderStatus.ACCEPTED
+    OrderStatus.ACCEPTED,
+    OrderStatus.PENDING,
+    { sellerId }
   );
+  if (!updatedOrder) throw new AppError("Only pending orders can be accepted.", 409);
 
   const seller = await ensureUserExists(sellerId);
 
@@ -207,8 +210,11 @@ export const rejectOrder = async (
 
   const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
-    OrderStatus.REJECTED
+    OrderStatus.REJECTED,
+    OrderStatus.PENDING,
+    { sellerId }
   );
+  if (!updatedOrder) throw new AppError("Only pending orders can be rejected.", 409);
 
   const seller = await ensureUserExists(sellerId);
 
@@ -233,8 +239,11 @@ export const cancelOrder = async (
 
   const updatedOrder = await orderRepository.updateOrderStatus(
     orderId,
-    OrderStatus.CANCELLED
+    OrderStatus.CANCELLED,
+    OrderStatus.PENDING,
+    { buyerId }
   );
+  if (!updatedOrder) throw new AppError("Only pending orders can be cancelled.", 409);
 
   return toOrderDTO(updatedOrder);
 };
@@ -272,4 +281,24 @@ export const getOrder = async (
   }
 
   return toOrderDTO(order);
+};
+
+export const completeOrder = async (orderId: string, buyerId: string) => {
+  const order = await ensureOrderExists(orderId);
+  ensureBuyer(order, buyerId);
+  if (order.status !== OrderStatus.ACCEPTED) {
+    throw new AppError("Only accepted orders can be completed.", 409);
+  }
+  const updatedOrder = await orderRepository.updateOrderStatus(
+    orderId, OrderStatus.COMPLETED, OrderStatus.ACCEPTED, { buyerId }
+  );
+  if (!updatedOrder) throw new AppError("Only accepted orders can be completed.", 409);
+
+  await notificationService.notifyOrderCompleted({
+    recipientId: updatedOrder.sellerId,
+    sender: updatedOrder.buyer,
+    product: updatedOrder.product,
+    orderId: updatedOrder.id,
+  });
+  return toOrderDTO(updatedOrder);
 };

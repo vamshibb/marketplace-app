@@ -297,3 +297,15 @@ export const markAllAsRead = (
     userId
   );
 };
+
+export const notifyOrderCompleted = async (payload: OrderNotificationPayload): Promise<void> => {
+  if (shouldSkipNotification(payload.sender.id, payload.recipientId)) return;
+  await safeCreateNotification({
+    recipientId: payload.recipientId,
+    senderId: payload.sender.id,
+    type: NotificationType.ORDER,
+    title: "Order Completed",
+    body: `${payload.sender.email} completed the order for ${payload.product.title}`,
+    metadata: { orderId: payload.orderId, productId: payload.product.id },
+  });
+};

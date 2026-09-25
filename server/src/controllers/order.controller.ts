@@ -150,3 +150,12 @@ export const cancelOrder = async (
     next(error);
   }
 };
+
+export const completeOrder = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const order = await orderService.completeOrder(req.params.orderId, req.user!.id);
+    return res.status(200).json(successResponse(order, "Order completed successfully"));
+  } catch (error) {
+    next(error);
+  }
+};
