@@ -1,8 +1,9 @@
 import { userSummarySelect } from "./user.select";
-import { Prisma } from "../generated/prisma";
+import { ReviewUpdate } from "../validators/reviewValidators";
 import { prisma } from "../prisma/client";
 
 export const createReview = (
+  orderId: string,
   userId: string,
   productId: string,
   rating: number,
@@ -10,6 +11,7 @@ export const createReview = (
 ) => {
   return prisma.review.create({
     data: {
+      orderId,
       userId,
       productId,
       rating,
@@ -46,11 +48,11 @@ export const getReviewById = (
 
 export const updateReview = (
   id: string,
-  data: Prisma.ReviewUpdateInput
+  data: ReviewUpdate
 ) => {
   return prisma.review.update({
     where: { id },
-    data,
+    data: { rating: data.rating, comment: data.comment },
   });
 };
 

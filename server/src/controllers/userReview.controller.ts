@@ -7,7 +7,7 @@ import { AuthRequest }
   from "../middleware/authMiddleware";
 
 import * as reviewService
-  from "../services/review.service";
+  from "../services/userReview.service";
 
 import {
   createReviewSchema,
@@ -17,8 +17,7 @@ import {
 import { successResponse }
   from "../utils/apiResponse";
 
-import { AppError }
-  from "../errors/AppError";
+
 
 export const createReview = async (
   req: AuthRequest,
@@ -34,7 +33,7 @@ export const createReview = async (
     );
 
     const review =
-      await reviewService.createReview(
+      await reviewService.createUserReview(
         req.user!.id,
         req.params.orderId,
         rating,
@@ -52,26 +51,6 @@ export const createReview = async (
   }
 };
 
-export const getProductReviews =
-  async (
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-  ) => {
-    try {
-      const reviews =
-        await reviewService.getProductReviews(
-          req.params.productId
-        );
-
-      res.json(
-        successResponse(reviews)
-      );
-    } catch (error) {
-      next(error);
-    }
-  };
-
 export const updateReview =
   async (
     req: AuthRequest,
@@ -85,7 +64,7 @@ export const updateReview =
         );
 
       const updatedReview =
-        await reviewService.updateReview(
+        await reviewService.updateUserReview(
           req.params.reviewId,
           validatedData,
           req.user!.id
@@ -109,7 +88,7 @@ export const deleteReview =
     next: NextFunction
   ) => {
     try {
-      await reviewService.deleteReview(
+      await reviewService.deleteUserReview(
         req.params.reviewId,
         req.user!.id
       );
@@ -125,6 +104,3 @@ export const deleteReview =
     }
   };
 
-export const rejectLegacyReviewCreation = (
-  _req: AuthRequest, _res: Response, next: NextFunction
-) => next(new AppError("Use POST /api/orders/:orderId/reviews/product to review a completed transaction", 410));

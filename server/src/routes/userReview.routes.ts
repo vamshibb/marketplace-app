@@ -3,7 +3,7 @@ import { Router } from "express";
 import {
   updateReview,
   deleteReview,
-} from "../controllers/review.controller";
+} from "../controllers/userReview.controller";
 
 import {
   authMiddleware,

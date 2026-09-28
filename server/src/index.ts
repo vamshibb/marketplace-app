@@ -23,6 +23,8 @@ import notificationRoutes
   from "./routes/notification.routes";
 import orderRoutes from "./routes/order.routes";
 
+import userReviewRoutes from "./routes/userReview.routes";
+
 const app = express();
 
 app.use(cors());
@@ -51,6 +53,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/user-reviews", userReviewRoutes);
 app.use("/api/products", productMediaRoutes);
 app.use("/api", conversationRoutes);
 app.use("/api", messageRoutes);

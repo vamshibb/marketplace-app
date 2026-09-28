@@ -1,4 +1,5 @@
 import * as reviewRepository from "../repositories/review.repository";
+import { getCompletedReviewOrder, translateReviewConflict } from "./reviewEligibility";
 import * as productRepository from "../repositories/product.repository";
 import { AppError } from "../errors/AppError";
 
@@ -16,18 +17,21 @@ const validateReviewOwnership = async (
   }
 };
 
-export const createReview = (
+export const createReview = async (
   userId: string,
-  productId: string,
+  orderId: string,
   rating: number,
   comment?: string
 ) => {
-  return reviewRepository.createReview(
-    userId,
-    productId,
-    rating,
-    comment
-  );
+  const order = await getCompletedReviewOrder(orderId, userId);
+  if (order.buyerId !== userId || order.sellerId === userId) {
+    throw new AppError("Only the buyer can create a product review for this order", 403);
+  }
+  try {
+    return await reviewRepository.createReview(order.id, userId, order.productId, rating, comment);
+  } catch (error) {
+    return translateReviewConflict(error, "A product review already exists for this order");
+  }
 };
 
 export const getProductReviews = async (

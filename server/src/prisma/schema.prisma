@@ -45,6 +45,8 @@ model User {
   favorites                Favorite[]
   products                 Product[]
   reviews                  Review[]
+  userReviewsWritten       UserReview[] @relation("UserReviewsWritten")
+  userReviewsReceived      UserReview[] @relation("UserReviewsReceived")
   conversationParticipants ConversationParticipant[]
   sentMessages             Message[]
   receivedNotifications    Notification[]            @relation("NotificationRecipient")
@@ -119,13 +121,35 @@ model Review {
   rating    Int
   comment   String?
   userId    String
+  orderId   String?  @unique
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Restrict)
   productId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   product   Product  @relation(fields: [productId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
 
-  @@unique([userId, productId])
+  @@index([productId])
+  @@index([userId])
+}
+
+model UserReview {
+  id         String @id @default(cuid())
+  orderId    String
+  reviewerId String
+  revieweeId String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  reviewer User @relation("UserReviewsWritten", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewee User @relation("UserReviewsReceived", fields: [revieweeId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, reviewerId, revieweeId])
+  @@index([revieweeId])
+  @@index([reviewerId])
 }
 
 model ProductMedia {
@@ -213,6 +237,8 @@ model Notification {
 }
 
 model Order {
+  productReview Review?
+  userReviews   UserReview[]
   id            String      @id @default(cuid())
   buyerId       String
   sellerId      String

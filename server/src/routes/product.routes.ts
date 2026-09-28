@@ -20,7 +20,7 @@ import {
   getProductsQuerySchema,
   updateProductSchema,
 } from "../validators/productValidators";
-import { createReview, getProductReviews } from "../controllers/review.controller";
+import { rejectLegacyReviewCreation, getProductReviews } from "../controllers/review.controller";
 import { upload } from "../middleware/upload.middleware";
 import {
   productIdParamSchema,
@@ -49,7 +49,7 @@ router.post(
   "/:productId/reviews",
   authMiddleware,
   validate(productIdParamSchema, "params"),
-  createReview
+  rejectLegacyReviewCreation
 );
 router.get(
   "/:id",
