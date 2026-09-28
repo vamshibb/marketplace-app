@@ -1,6 +1,13 @@
 import { prisma } from "../prisma/client";
 import { ReviewUpdate } from "../validators/reviewValidators";
 
+export const findUserReviewStatus = (orderId: string, reviewerId: string) => {
+  return prisma.userReview.findFirst({
+    where: { orderId, reviewerId },
+    select: { id: true },
+  });
+};
+
 export const createUserReview = (
   orderId: string, reviewerId: string, revieweeId: string, rating: number, comment?: string
 ) => prisma.userReview.create({ data: { orderId, reviewerId, revieweeId, rating, comment } });

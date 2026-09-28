@@ -20,6 +20,19 @@ import { successResponse }
 import { AppError }
   from "../errors/AppError";
 
+export const getOrderReviewStatus = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const status = await reviewService.getOrderReviewStatus(req.params.orderId, req.user!.id);
+    res.json(successResponse(status));
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createReview = async (
   req: AuthRequest,
   res: Response,

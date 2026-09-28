@@ -2,6 +2,38 @@ import * as reviewRepository from "../repositories/review.repository";
 import { getCompletedReviewOrder, translateReviewConflict } from "./reviewEligibility";
 import * as productRepository from "../repositories/product.repository";
 import { AppError } from "../errors/AppError";
+import * as orderRepository from "../repositories/order.repository";
+import * as userReviewRepository from "../repositories/userReview.repository";
+import type { OrderReviewStatusDTO } from "../dto/reviewStatus.dto";
+
+export const getOrderReviewStatus = async (
+  orderId: string,
+  userId: string
+): Promise<OrderReviewStatusDTO> => {
+  const order = await orderRepository.findOrderById(orderId);
+  if (!order) throw new AppError("Order not found", 404);
+  if (order.buyerId !== userId && order.sellerId !== userId) {
+    throw new AppError("Only order participants can view review status", 403);
+  }
+
+  const [productReview, userReview] = await Promise.all([
+    reviewRepository.findProductReviewStatus(orderId, userId),
+    userReviewRepository.findUserReviewStatus(orderId, userId),
+  ]);
+  const eligible = order.status === "COMPLETED" && order.buyerId !== order.sellerId;
+  return {
+    productReview: {
+      eligible: eligible && order.buyerId === userId,
+      submitted: productReview !== null,
+      reviewId: productReview?.id ?? null,
+    },
+    userReview: {
+      eligible,
+      submitted: userReview !== null,
+      reviewId: userReview?.id ?? null,
+    },
+  };
+};
 
 const validateReviewOwnership = async (
   id: string,

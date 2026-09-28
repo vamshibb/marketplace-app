@@ -9,11 +9,14 @@ import {
   productOrderParamsSchema,
 } from "../validators/order.validator";
 
-import { createReview } from "../controllers/review.controller";
+import { createReview, getOrderReviewStatus } from "../controllers/review.controller";
 import { createReview as createUserReview } from "../controllers/userReview.controller";
 import { createReviewSchema } from "../validators/reviewValidators";
 
 const router = Router();
+
+router.get("/orders/:orderId/reviews/status", authMiddleware,
+  validate(orderParamsSchema, "params"), getOrderReviewStatus);
 
 router.post("/orders/:orderId/reviews/product", authMiddleware,
   validate(orderParamsSchema, "params"), validate(createReviewSchema), createReview);

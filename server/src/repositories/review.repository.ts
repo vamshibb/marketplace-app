@@ -2,6 +2,13 @@ import { userSummarySelect } from "./user.select";
 import { ReviewUpdate } from "../validators/reviewValidators";
 import { prisma } from "../prisma/client";
 
+export const findProductReviewStatus = (orderId: string, userId: string) => {
+  return prisma.review.findUnique({
+    where: { orderId, userId },
+    select: { id: true },
+  });
+};
+
 export const createReview = (
   orderId: string,
   userId: string,
