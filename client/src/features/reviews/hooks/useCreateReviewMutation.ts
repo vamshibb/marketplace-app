@@ -21,6 +21,9 @@ export const useCreateReviewMutation = (orderId: string, kind: ReviewKind, onClo
       return { review, userId: user.id, token };
     },
     onSuccess: async ({ review, userId, token }) => {
+      if (kind === "product" && review.productId) {
+        void client.invalidateQueries({ queryKey: reviewQueryKeys.product(review.productId), exact: true });
+      }
       if (useAuthStore.getState().token !== token) return;
       const queryKey = reviewQueryKeys.status(userId, orderId);
       await client.cancelQueries({ queryKey, exact: true });

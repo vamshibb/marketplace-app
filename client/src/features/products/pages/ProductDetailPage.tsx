@@ -1,6 +1,7 @@
 import { CalendarDays, UserRound } from "lucide-react";
 import { ContactSellerButton } from "../../messaging";
 import { RequestOrderButton } from "../../orders";
+import { ProductReviews } from "../../reviews";
 import { WishlistButton } from "../components/WishlistButton";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -173,6 +174,7 @@ export const ProductDetailPage = () => {
           </div>
         </div>
 
+        <ProductReviews productId={product.id} />
       </article>
     </div>
   );

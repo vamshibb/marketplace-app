@@ -1,7 +1,14 @@
 import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type { ReviewValues } from "../schemas/reviewSchema";
-import type { CreatedReview, OrderReviewStatus, ReviewKind } from "../types";
+import type { CreatedReview, OrderReviewStatus, ProductReview, ReviewKind } from "../types";
+
+export const getProductReviews = async (productId: string, signal?: AbortSignal): Promise<ProductReview[]> => {
+  const response = await api.get<ApiResponse<ProductReview[]>>(
+    `/products/${encodeURIComponent(productId)}/reviews`, { signal },
+  );
+  return response.data.data;
+};
 
 export const getReviewStatus = async (orderId: string, signal?: AbortSignal): Promise<OrderReviewStatus> => {
   const response = await api.get<ApiResponse<OrderReviewStatus>>(
