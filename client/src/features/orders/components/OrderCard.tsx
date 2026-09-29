@@ -1,3 +1,4 @@
+import { OrderReviews } from "../../reviews";
 import { Link } from "react-router-dom";
 import type { Order, OrderRole } from "../types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
@@ -45,6 +46,7 @@ export const OrderCard = ({ order, role }: { order: Order; role: OrderRole }) =>
         </div>
       )}
       <OrderActions order={order} role={role} />
+      {order.status === "COMPLETED" && <OrderReviews orderId={order.id} role={role} completed />}
     </article>
   );
 };
