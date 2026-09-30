@@ -31,3 +31,25 @@ export interface ProductReview {
   updatedAt: string;
   user: UserSummary;
 }
+
+export interface ReputationSummary {
+  averageRating: number | null;
+  reviewCount: number;
+}
+
+export interface UserReputationReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  reviewer: UserSummary;
+  transactionType: "SALE" | "RENT";
+  product: { id: string; title: string };
+  role: "SELLER" | "BUYER";
+}
+
+export interface UserReputation {
+  seller: ReputationSummary;
+  buyer: ReputationSummary;
+  reviews: UserReputationReview[];
+}

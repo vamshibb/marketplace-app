@@ -1,7 +1,7 @@
 import { CalendarDays, UserRound } from "lucide-react";
 import { ContactSellerButton } from "../../messaging";
 import { RequestOrderButton } from "../../orders";
-import { ProductReviews } from "../../reviews";
+import { ProductReviews, SellerReputationSummary, SellerReviews, useUserReputationQuery } from "../../reviews";
 import { WishlistButton } from "../components/WishlistButton";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -19,6 +19,10 @@ export const ProductDetailPage = () => {
   const requireAuthentication = useRequireAuthentication();
   const isAuthenticated = useAuthStore((state) => Boolean(state.token));
   const { data: currentUser } = useCurrentUserQuery();
+  const showSellerReputation = Boolean(productQuery.data && (
+    !isAuthenticated || (currentUser && currentUser.id !== productQuery.data.sellerId)
+  ));
+  const sellerReputation = useUserReputationQuery(productQuery.data?.sellerId, showSellerReputation);
 
   if (!id) {
     return (
@@ -140,7 +144,10 @@ export const ProductDetailPage = () => {
               </>}
               <div className="space-y-1">
                 <dt className="flex items-center gap-2 font-medium text-slate-500"><UserRound className="size-4" aria-hidden="true" />Seller</dt>
-                <dd className="wrap-anywhere text-slate-700">{product.seller.displayName ?? product.seller.email}</dd>
+                <dd className="space-y-1 wrap-anywhere text-slate-700">
+                  <span>{product.seller.displayName ?? product.seller.email}</span>
+                  {showSellerReputation && <SellerReputationSummary reputation={sellerReputation} />}
+                </dd>
               </div>
               {hasListedDate && (
                 <div className="space-y-1">
@@ -175,6 +182,7 @@ export const ProductDetailPage = () => {
         </div>
 
         <ProductReviews productId={product.id} />
+        {showSellerReputation && <SellerReviews reputation={sellerReputation} />}
       </article>
     </div>
   );
