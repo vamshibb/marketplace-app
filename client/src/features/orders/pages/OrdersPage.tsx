@@ -85,7 +85,13 @@ export const OrdersPage = () => {
               ref={order.id === orderId ? selectedRow : undefined}
               tabIndex={order.id === orderId ? -1 : undefined}
               className={order.id === orderId ? "scroll-mt-20 rounded-xl ring-2 ring-blue-500 ring-offset-2" : undefined}>
-              <OrderCard order={order} role={role} selected={order.id === orderId} /></li>)}</ul>}
+              <OrderCard order={order} role={role} selected={order.id === orderId}
+                onReputationToggle={open => setParams(previous => {
+                  const next = new URLSearchParams(previous);
+                  if (open) next.set("orderId", order.id);
+                  else if (next.get("orderId") === order.id) next.delete("orderId");
+                  return next;
+                }, { replace: true })} /></li>)}</ul>}
       </div>
     </section>
   );

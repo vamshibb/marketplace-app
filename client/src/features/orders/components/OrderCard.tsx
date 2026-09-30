@@ -5,7 +5,7 @@ import { OrderStatusBadge } from "./OrderStatusBadge";
 import { OrderActions } from "./OrderActions";
 import { rentalDuration } from "../utils/rentalDuration";
 
-export const OrderCard = ({ order, role, selected = false }: { order: Order; role: OrderRole; selected?: boolean }) => {
+export const OrderCard = ({ order, role, selected = false, onReputationToggle }: { order: Order; role: OrderRole; selected?: boolean; onReputationToggle: (open: boolean) => void }) => {
   const counterpart = role === "buyer" ? order.seller : order.buyer;
   const price = Number(order.unitPrice);
   const isRental = order.transactionType === "RENT";
@@ -21,7 +21,7 @@ export const OrderCard = ({ order, role, selected = false }: { order: Order; rol
         <div className="min-w-0 space-y-1">
           <Link to={`/products/${order.product.id}`} className="font-semibold wrap-anywhere text-slate-900 hover:text-blue-600 focus-visible:outline-2 focus-visible:outline-blue-600">{order.product.title}</Link>
           <p className="text-sm wrap-anywhere text-slate-600">{role === "buyer" ? "Seller" : "Buyer"}: {counterpart.displayName ?? counterpart.email}</p>
-          {role === "seller" && <BuyerReputation key={`${order.buyer.id}:${selected}`} buyerId={order.buyer.id} initiallyOpen={selected} />}
+          {role === "seller" && <BuyerReputation buyerId={order.buyer.id} open={selected} onOpenChange={onReputationToggle} />}
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
           {isRental && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">RENT</span>}

@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { type ReactElement } from "react";
 import { Star } from "lucide-react";
 import { Button } from "../../../shared/ui/Button";
 import { useUserReputationQuery } from "../hooks/useUserReputationQuery";
@@ -44,13 +44,13 @@ const BuyerReputationContent = ({ buyerId }: { buyerId: string }): ReactElement 
 
 interface BuyerReputationProps {
   buyerId: string;
-  initiallyOpen?: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export const BuyerReputation = ({ buyerId, initiallyOpen = false }: BuyerReputationProps): ReactElement => {
-  const [open, setOpen] = useState(initiallyOpen);
-  return <details open={open} onToggle={event => setOpen(event.currentTarget.open)} className="pt-1">
-    <summary className="cursor-pointer rounded text-sm font-medium text-blue-600 focus-visible:outline-2 focus-visible:outline-blue-600">Buyer/Renter Reputation</summary>
+export const BuyerReputation = ({ buyerId, open, onOpenChange }: BuyerReputationProps): ReactElement => {
+  return <details open={open} className="pt-1">
+    <summary onClick={event => { event.preventDefault(); onOpenChange(!open); }} className="cursor-pointer rounded text-sm font-medium text-blue-600 focus-visible:outline-2 focus-visible:outline-blue-600">Buyer/Renter Reputation</summary>
     <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3">
       {open && <BuyerReputationContent buyerId={buyerId} />}
     </div>
