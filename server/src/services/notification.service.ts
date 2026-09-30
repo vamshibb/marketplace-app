@@ -160,6 +160,30 @@ const safeCreateNotification = async (
   }
 };
 
+export const notifyReview = async (payload: {
+  recipientId: string;
+  senderId: string;
+  reviewId: string;
+  reviewType: "PRODUCT" | "USER";
+  orderId: string;
+  productId: string;
+}): Promise<void> => {
+  if (shouldSkipNotification(payload.senderId, payload.recipientId)) return;
+  await safeCreateNotification({
+    recipientId: payload.recipientId,
+    senderId: payload.senderId,
+    type: NotificationType.REVIEW,
+    title: payload.reviewType === "PRODUCT" ? "New Product Review" : "New Review",
+    body: payload.reviewType === "PRODUCT" ? "Your product received a new review." : "You received a new review.",
+    metadata: {
+      reviewId: payload.reviewId,
+      reviewType: payload.reviewType,
+      orderId: payload.orderId,
+      productId: payload.productId,
+    },
+  });
+};
+
 const ensureNotificationExists = async (
   id: string
 ) => {

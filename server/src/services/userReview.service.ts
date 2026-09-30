@@ -2,6 +2,7 @@ import * as repository from "../repositories/userReview.repository";
 import { AppError } from "../errors/AppError";
 import { ReviewUpdate } from "../validators/reviewValidators";
 import { getCompletedReviewOrder, translateReviewConflict } from "./reviewEligibility";
+import { notifyReview } from "./notification.service";
 import { toReceivedUserReviewDTO, type UserReputationDTO, type UserReviewSummaryDTO } from "../dto/userReview.dto";
 
 export const getReceivedUserReviews = async (userId: string): Promise<UserReputationDTO> => {
@@ -29,7 +30,16 @@ export const createUserReview = async (
   const revieweeId = reviewerId === order.buyerId ? order.sellerId : order.buyerId;
   if (reviewerId === revieweeId) throw new AppError("You cannot review yourself", 403);
   try {
-    return await repository.createUserReview(order.id, reviewerId, revieweeId, rating, comment);
+    const review = await repository.createUserReview(order.id, reviewerId, revieweeId, rating, comment);
+    await notifyReview({
+      recipientId: revieweeId,
+      senderId: reviewerId,
+      reviewId: review.id,
+      reviewType: "USER",
+      orderId: order.id,
+      productId: order.productId,
+    });
+    return review;
   } catch (error) {
     return translateReviewConflict(error, "You already reviewed this user for this order");
   }

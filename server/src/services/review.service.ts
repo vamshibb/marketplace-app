@@ -5,6 +5,7 @@ import { AppError } from "../errors/AppError";
 import * as orderRepository from "../repositories/order.repository";
 import * as userReviewRepository from "../repositories/userReview.repository";
 import type { OrderReviewStatusDTO } from "../dto/reviewStatus.dto";
+import { notifyReview } from "./notification.service";
 
 export const getOrderReviewStatus = async (
   orderId: string,
@@ -60,7 +61,16 @@ export const createReview = async (
     throw new AppError("Only the buyer can create a product review for this order", 403);
   }
   try {
-    return await reviewRepository.createReview(order.id, userId, order.productId, rating, comment);
+    const review = await reviewRepository.createReview(order.id, userId, order.productId, rating, comment);
+    await notifyReview({
+      recipientId: order.sellerId,
+      senderId: userId,
+      reviewId: review.id,
+      reviewType: "PRODUCT",
+      orderId: order.id,
+      productId: order.productId,
+    });
+    return review;
   } catch (error) {
     return translateReviewConflict(error, "A product review already exists for this order");
   }
