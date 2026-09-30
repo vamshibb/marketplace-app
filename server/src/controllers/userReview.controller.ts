@@ -1,4 +1,5 @@
 import {
+  Request,
   Response,
   NextFunction,
 } from "express";
@@ -16,6 +17,15 @@ import {
 
 import { successResponse }
   from "../utils/apiResponse";
+
+export const getReceivedUserReviews = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const reviews = await reviewService.getReceivedUserReviews(req.params.userId);
+    res.json(successResponse(reviews));
+  } catch (error) {
+    next(error);
+  }
+};
 
 
 

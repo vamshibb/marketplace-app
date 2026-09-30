@@ -24,6 +24,7 @@ import notificationRoutes
 import orderRoutes from "./routes/order.routes";
 
 import userReviewRoutes from "./routes/userReview.routes";
+import userRoutes from "./routes/user.routes";
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/user-reviews", userReviewRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/products", productMediaRoutes);
 app.use("/api", conversationRoutes);
 app.use("/api", messageRoutes);

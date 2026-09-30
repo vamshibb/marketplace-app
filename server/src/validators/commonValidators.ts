@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const userIdParamSchema = z.object({
+  userId: z.cuid(),
+});
+
 export const productIdParamSchema = z.union([
   z.object({
     id: z.cuid(),

@@ -1,5 +1,26 @@
 import { prisma } from "../prisma/client";
 import { ReviewUpdate } from "../validators/reviewValidators";
+import { userSummarySelect } from "./user.select";
+
+export const findReceivedUserReviews = (revieweeId: string) => prisma.userReview.findMany({
+  where: { revieweeId },
+  select: {
+    id: true,
+    rating: true,
+    comment: true,
+    createdAt: true,
+    reviewer: { select: userSummarySelect },
+    order: {
+      select: {
+        transactionType: true,
+        sellerId: true,
+        buyerId: true,
+        product: { select: { id: true, title: true } },
+      },
+    },
+  },
+  orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+});
 
 export const findUserReviewStatus = (orderId: string, reviewerId: string) => {
   return prisma.userReview.findFirst({

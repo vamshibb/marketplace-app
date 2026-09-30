@@ -2,6 +2,25 @@ import * as repository from "../repositories/userReview.repository";
 import { AppError } from "../errors/AppError";
 import { ReviewUpdate } from "../validators/reviewValidators";
 import { getCompletedReviewOrder, translateReviewConflict } from "./reviewEligibility";
+import { toReceivedUserReviewDTO, type UserReputationDTO, type UserReviewSummaryDTO } from "../dto/userReview.dto";
+
+export const getReceivedUserReviews = async (userId: string): Promise<UserReputationDTO> => {
+  const received = await repository.findReceivedUserReviews(userId);
+  const totals = { SELLER: { sum: 0, count: 0 }, BUYER: { sum: 0, count: 0 } };
+  const reviews = received.map(review => {
+    const role = review.order.sellerId === userId ? "SELLER"
+      : review.order.buyerId === userId ? "BUYER" : null;
+    if (!role) throw new AppError("Review recipient is not an order participant", 500);
+    totals[role].sum += review.rating;
+    totals[role].count += 1;
+    return toReceivedUserReviewDTO(review, role);
+  });
+  const summarize = ({ sum, count }: { sum: number; count: number }): UserReviewSummaryDTO => ({
+    averageRating: count === 0 ? null : sum / count,
+    reviewCount: count,
+  });
+  return { seller: summarize(totals.SELLER), buyer: summarize(totals.BUYER), reviews };
+};
 
 export const createUserReview = async (
   reviewerId: string, orderId: string, rating: number, comment?: string
