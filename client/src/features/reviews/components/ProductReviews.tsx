@@ -1,4 +1,6 @@
-import { useId, type ReactElement } from "react";
+import { useLocation } from "react-router-dom";
+import { useScrollToTarget } from "../../../shared/hooks/useScrollToTarget";
+import { useId, useRef, type ReactElement } from "react";
 import { Star } from "lucide-react";
 import { Button } from "../../../shared/ui/Button";
 import { useProductReviewsQuery } from "../hooks/useProductReviewsQuery";
@@ -6,10 +8,13 @@ import { useProductReviewsQuery } from "../hooks/useProductReviewsQuery";
 export const ProductReviews = ({ productId }: { productId: string }): ReactElement => {
   const headingId = useId();
   const reviews = useProductReviewsQuery(productId);
+  const location = useLocation();
+  const sectionRef = useRef<HTMLElement>(null);
+  useScrollToTarget(sectionRef, location.hash === "#reviews" ? `${productId}:${location.key}` : null, !reviews.isPending);
   const items = reviews.data ?? [];
   const average = items.length ? (items.reduce((sum, review) => sum + review.rating, 0) / items.length).toFixed(1) : null;
 
-  return <section aria-labelledby={headingId} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+  return <section id="reviews" ref={sectionRef} tabIndex={-1} aria-labelledby={headingId} className="scroll-mt-20 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <h2 id={headingId} className="text-lg font-semibold text-slate-900">Reviews</h2>
     {reviews.isPending ? <p role="status" className="text-sm text-slate-500">Loading reviews...</p>
       : reviews.isError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">

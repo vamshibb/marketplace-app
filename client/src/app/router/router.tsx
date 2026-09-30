@@ -19,6 +19,7 @@ import {
   ConversationPage,
   MessagesPage,
   OrdersPage,
+  MyReputationPage,
 } from "./lazyPages";
 
 export const router = createBrowserRouter([
@@ -58,6 +59,10 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute />,
         children: [
+          {
+            path: "/reputation",
+            element: <Suspense fallback={<p>Loading...</p>}><MyReputationPage /></Suspense>,
+          },
           {
             path: "/orders",
             element: <Suspense fallback={<p>Loading...</p>}><OrdersPage /></Suspense>,

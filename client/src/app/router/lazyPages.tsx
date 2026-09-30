@@ -12,3 +12,5 @@ export const EditProductPage = lazy(() => import("../../features/products/pages/
 export const HomePage = lazy(() => import("../../features/home/page/HomePage").then((module) => ({ default: module.HomePage })));
 export const ConversationPage = lazy(() => import("../../features/messaging/pages/ConversationPage").then((module) => ({ default: module.ConversationPage })));
 export const MessagesPage = lazy(() => import("../../features/messaging/pages/MessagesPage").then((module) => ({ default: module.MessagesPage })));
+
+export const MyReputationPage = lazy(() => import("../../features/reviews/pages/MyReputationPage").then(module => ({ default: module.MyReputationPage })));

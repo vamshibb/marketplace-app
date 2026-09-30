@@ -1,3 +1,4 @@
+import { getReviewDestination } from "../reviewDestination";
 import { Bell } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -45,6 +46,11 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
     selecting.current = true;
     try {
       if (!notification.isRead) await markRead.mutateAsync(notification.id);
+      const reviewDestination = getReviewDestination(notification);
+      if (reviewDestination) {
+        setOpen(false);
+        navigate(reviewDestination);
+      }
       const conversationId = notification.metadata?.conversationId;
       if (notification.type === "MESSAGE" && typeof conversationId === "string" && conversationId.trim()) {
         setOpen(false);
