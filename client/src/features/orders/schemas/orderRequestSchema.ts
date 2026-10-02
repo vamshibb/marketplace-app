@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { OrderRequestProduct } from "../components/RequestOrderButton";
+import { utcToday } from "../utils/rentalCalendarDates";
 import { rentalDuration } from "../utils/rentalDuration";
 export const orderRequestSchema = z.object({
   quantity: z.number({ error: "Enter a quantity." }).int("Quantity must be a whole number.").positive("Quantity must be at least 1."),
@@ -9,6 +10,7 @@ export const orderRequestSchema = z.object({
 });
 export const createOrderRequestSchema = (product: OrderRequestProduct) => orderRequestSchema.superRefine((values, context) => {
   if (product.listingType !== "RENT") return;
+  if (values.requestedFrom && values.requestedFrom < utcToday()) context.addIssue({ code: "custom", path: ["requestedFrom"], message: "Start date cannot be in the past (UTC)." });
   if (!values.requestedFrom) context.addIssue({ code: "custom", path: ["requestedFrom"], message: "From date is required." });
   if (!values.requestedTo) context.addIssue({ code: "custom", path: ["requestedTo"], message: "Return date is required." });
   if (values.requestedFrom && values.requestedTo) {
