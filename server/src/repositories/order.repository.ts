@@ -168,3 +168,14 @@ export const updateOrderStatus = async (
     throw error;
   }
 };
+
+export const findOverlappingRentalReservations = (productId: string, from: Date, to: Date) => prisma.order.findMany({
+  where: {
+    productId,
+    transactionType: "RENT",
+    status: { in: [OrderStatus.ACCEPTED, OrderStatus.ACTIVE, OrderStatus.RETURN_PENDING] },
+    requestedFrom: { lt: to },
+    requestedTo: { gt: from },
+  },
+  select: { requestedFrom: true, requestedTo: true, quantity: true },
+});

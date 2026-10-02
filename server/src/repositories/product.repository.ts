@@ -164,3 +164,7 @@ export const findProductOwner = (
     },
   });
 };
+export const findProductInventory = (id: string) => prisma.product.findUnique({
+  where: { id },
+  select: { id: true, listingType: true, quantityAvailable: true },
+});

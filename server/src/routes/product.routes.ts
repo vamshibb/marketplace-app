@@ -25,7 +25,16 @@ import { upload } from "../middleware/upload.middleware";
 import {
   productIdParamSchema,
 } from "../validators/commonValidators";
+import { getProductAvailability } from "../controllers/availability.controller";
+import { availabilityQuerySchema } from "../validators/availability.validator";
+
 const router = Router();
+
+router.get("/:productId/availability",
+  validate(productIdParamSchema, "params"),
+  validate(availabilityQuerySchema, "query"),
+  getProductAvailability,
+);
 
 router.get(
   "/mine",
