@@ -1,5 +1,6 @@
 import type { OrderRole } from "./types";
 export const ordersQueryKeys = {
+  availabilityRoot: (productId: string) => ["rental-availability", productId] as const,
   availability: (productId: string, from: string, to: string) => ["rental-availability", productId, from, to] as const,
   detail: (userId: string | undefined, id: string) => ["orders", userId, "detail", id] as const,
   action: (userId: string | undefined, id: string) => ["orders", userId, "action", id] as const,

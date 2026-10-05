@@ -1,3 +1,5 @@
+import { useCurrentUserQuery } from "../../auth";
+import { ManageAvailabilityLink } from "../components/ManageAvailabilityLink";
 import { Plus } from "lucide-react";
 import type { ReactElement } from "react";
 import { Link } from "react-router-dom";
@@ -9,6 +11,7 @@ import { useMyProductsQuery } from "../hooks/useMyProductsQuery";
 
 export const MyProductsPage = (): ReactElement => {
   const productsQuery = useMyProductsQuery();
+  const { data: user } = useCurrentUserQuery();
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -34,7 +37,10 @@ export const MyProductsPage = (): ReactElement => {
         </section>
       ) : (
         <div className="grid grid-cols-1 justify-items-center gap-x-4 gap-y-6 md:grid-cols-2 xl:grid-cols-4">
-          {productsQuery.data.map((product) => <ProductCard key={product.id} product={product} />)}
+          {productsQuery.data.map((product) => <div key={product.id} className="flex w-full max-w-[320px] flex-col gap-2">
+            <ProductCard product={product} />
+            <ManageAvailabilityLink product={product} userId={user?.id} />
+          </div>)}
         </div>
       )}
     </div>

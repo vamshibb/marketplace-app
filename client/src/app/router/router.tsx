@@ -12,6 +12,7 @@ import {
   ProductDetailPage,
   ProductsPage,
   MyProductsPage,
+  ManageAvailabilityPage,
   WishlistPage,
   CreateProductPage,
   EditProductPage,
@@ -74,6 +75,10 @@ export const router = createBrowserRouter([
           {
             path: "/messages/:conversationId",
             element: <Suspense fallback={<p>Loading...</p>}><ConversationPage /></Suspense>,
+          },
+          {
+            path: "/products/:productId/manage-availability",
+            element: <Suspense fallback={<p>Loading...</p>}><ManageAvailabilityPage /></Suspense>,
           },
           {
             path: "/my-products",
