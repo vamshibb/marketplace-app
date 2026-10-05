@@ -1,5 +1,6 @@
+import { findOverlappingAvailabilityBlocks } from "../repositories/rentalInventory.repository";
 import { validateRentalRequest } from "./rentalRules";
-import { calculateRentalAvailability } from "./rentalAvailability";
+import { calculateRentalAvailability } from "../utils/rentalAvailability";
 import {
   OrderStatus,
   Prisma,
@@ -158,8 +159,9 @@ export const createOrder = async (
     const reservations = await orderRepository.findOverlappingRentalReservations(
       product.id, dates.requestedFrom, dates.requestedTo,
     );
+    const blocks = await findOverlappingAvailabilityBlocks(product.id, dates.requestedFrom, dates.requestedTo);
     const days = calculateRentalAvailability(
-      product.quantityAvailable, dates.requestedFrom, dates.requestedTo, reservations,
+      product.quantityAvailable, dates.requestedFrom, dates.requestedTo, reservations, blocks,
     );
     if (days.some(day => day.availableQuantity < (data.quantity ?? 1))) {
       throw new AppError("Requested rental dates are no longer available for the selected quantity.", 409);

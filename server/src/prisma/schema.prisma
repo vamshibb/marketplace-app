@@ -102,6 +102,7 @@ model Product {
   favorites     Favorite[]
   conversations Conversation[]
   orders        Order[]
+  availabilityBlocks AvailabilityBlock[]
 }
 
 model Favorite {
@@ -265,4 +266,18 @@ model Order {
   @@index([buyerId, status])
   @@index([sellerId, status])
   @@index([createdAt(sort: Desc)])
+}
+
+model AvailabilityBlock {
+  id          String   @id @default(cuid())
+  productId   String
+  blockedFrom DateTime @db.Date
+  blockedTo   DateTime @db.Date
+  quantity    Int
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, blockedFrom, blockedTo])
 }

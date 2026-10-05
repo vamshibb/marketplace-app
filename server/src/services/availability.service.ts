@@ -1,9 +1,10 @@
+import { findOverlappingAvailabilityBlocks } from "../repositories/rentalInventory.repository";
 import * as productRepository from "../repositories/product.repository";
 import * as orderRepository from "../repositories/order.repository";
 import { AppError } from "../errors/AppError";
 import type { ProductAvailabilityDTO } from "../dto/availability.dto";
 import type { AvailabilityQuery } from "../validators/availability.validator";
-import { calculateRentalAvailability } from "./rentalAvailability";
+import { calculateRentalAvailability } from "../utils/rentalAvailability";
 
 export const getProductAvailability = async (
   productId: string, query: AvailabilityQuery,
@@ -16,11 +17,12 @@ export const getProductAvailability = async (
   const from = new Date(`${query.from}T00:00:00.000Z`);
   const to = new Date(`${query.to}T00:00:00.000Z`);
   const reservations = await orderRepository.findOverlappingRentalReservations(productId, from, to);
+  const blocks = await findOverlappingAvailabilityBlocks(productId, from, to);
   return {
     productId: product.id,
     from: query.from,
     to: query.to,
     quantityAvailable: product.quantityAvailable,
-    days: calculateRentalAvailability(product.quantityAvailable, from, to, reservations),
+    days: calculateRentalAvailability(product.quantityAvailable, from, to, reservations, blocks),
   };
 };

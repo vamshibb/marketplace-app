@@ -1,3 +1,5 @@
+import { findOverlappingRentalReservations, findOverlappingAvailabilityBlocks } from "./rentalInventory.repository";
+import { calculateRentalAvailability } from "../utils/rentalAvailability";
 import { userSummarySelect } from "./user.select";
 import {
   OrderStatus,
@@ -21,17 +23,10 @@ export const acceptRentalOrder = async (id: string, sellerId: string) => {
         const product = await tx.product.findUniqueOrThrow({
           where: { id: order.productId }, select: { quantityAvailable: true },
         });
-        const reserved = await tx.order.aggregate({
-          where: {
-            productId: order.productId,
-            transactionType: "RENT",
-            status: { in: [OrderStatus.ACCEPTED, OrderStatus.ACTIVE, OrderStatus.RETURN_PENDING] },
-            requestedFrom: { lt: order.requestedTo },
-            requestedTo: { gt: order.requestedFrom },
-          },
-          _sum: { quantity: true },
-        });
-        if ((reserved._sum.quantity ?? 0) + order.quantity > product.quantityAvailable) {
+        const reservations = await findOverlappingRentalReservations(order.productId, order.requestedFrom, order.requestedTo, tx);
+        const blocks = await findOverlappingAvailabilityBlocks(order.productId, order.requestedFrom, order.requestedTo, tx);
+        const days = calculateRentalAvailability(product.quantityAvailable, order.requestedFrom, order.requestedTo, reservations, blocks);
+        if (days.some(day => day.availableQuantity < order.quantity)) {
           return { kind: "unavailable" as const };
         }
         const updated = await tx.order.update({
@@ -40,7 +35,11 @@ export const acceptRentalOrder = async (id: string, sellerId: string) => {
           select: orderSelect,
         });
         return { kind: "accepted" as const, order: updated };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === "P2034" && attempt < 2) continue;
@@ -169,13 +168,4 @@ export const updateOrderStatus = async (
   }
 };
 
-export const findOverlappingRentalReservations = (productId: string, from: Date, to: Date) => prisma.order.findMany({
-  where: {
-    productId,
-    transactionType: "RENT",
-    status: { in: [OrderStatus.ACCEPTED, OrderStatus.ACTIVE, OrderStatus.RETURN_PENDING] },
-    requestedFrom: { lt: to },
-    requestedTo: { gt: from },
-  },
-  select: { requestedFrom: true, requestedTo: true, quantity: true },
-});
+export { findOverlappingRentalReservations } from "./rentalInventory.repository";

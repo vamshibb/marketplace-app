@@ -20,27 +20,36 @@ export const calculateRentalAvailability = (
   from: Date,
   to: Date,
   reservations: readonly Reservation[],
+  blocks: readonly { blockedFrom: Date; blockedTo: Date; quantity: number }[] = [],
 ): AvailabilityDayDTO[] => {
   const start = utcDay(from);
   const dayCount = (utcDay(to) - start) / UTC_DAY_MS;
   const changes = new Array<number>(dayCount + 1).fill(0);
+  const blockedChanges = new Array<number>(dayCount + 1).fill(0);
+  const accumulate = (from: Date | null, to: Date | null, quantity: number, target: number[]) => {
+    if (!from || !to) return;
+    const first = Math.max(0, (utcDay(from) - start) / UTC_DAY_MS);
+    const end = Math.min(dayCount, (utcDay(to) - start) / UTC_DAY_MS);
+    if (first >= end) return;
+    target[first] += quantity;
+    target[end] -= quantity;
+  };
   for (const reservation of reservations) {
-    if (!reservation.requestedFrom || !reservation.requestedTo) continue;
-    const first = Math.max(0, (utcDay(reservation.requestedFrom) - start) / UTC_DAY_MS);
-    const end = Math.min(dayCount, (utcDay(reservation.requestedTo) - start) / UTC_DAY_MS);
-    if (first >= end) continue;
-    changes[first] += reservation.quantity;
-    changes[end] -= reservation.quantity;
+    accumulate(reservation.requestedFrom, reservation.requestedTo, reservation.quantity, changes);
   }
+  for (const block of blocks) accumulate(block.blockedFrom, block.blockedTo, block.quantity, blockedChanges);
+  let blockedQuantity = 0;
   let reservedQuantity = 0;
   return Array.from({ length: dayCount }, (_, index) => {
     reservedQuantity += changes[index];
-    const availableQuantity = Math.max(0, totalQuantity - reservedQuantity);
+    blockedQuantity += blockedChanges[index];
+    const availableQuantity = Math.max(0, totalQuantity - reservedQuantity - blockedQuantity);
     return {
       date: new Date(start + index * UTC_DAY_MS).toISOString().slice(0, 10),
       reservedQuantity,
+      blockedQuantity,
       availableQuantity,
-      status: reservedQuantity === 0 ? "AVAILABLE" : availableQuantity > 0 ? "PARTIAL" : "FULL",
+      status: reservedQuantity + blockedQuantity === 0 ? "AVAILABLE" : availableQuantity > 0 ? "PARTIAL" : "FULL",
     };
   });
 };

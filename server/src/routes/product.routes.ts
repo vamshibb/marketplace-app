@@ -1,3 +1,5 @@
+import * as availabilityBlocks from "../controllers/availabilityBlock.controller";
+import { createAvailabilityBlockSchema, availabilityBlockParamsSchema } from "../validators/availabilityBlock.validator";
 import { Router } from "express";
 
 import {
@@ -29,6 +31,14 @@ import { getProductAvailability } from "../controllers/availability.controller";
 import { availabilityQuerySchema } from "../validators/availability.validator";
 
 const router = Router();
+
+router.post("/:productId/availability-blocks", authMiddleware,
+  validate(productIdParamSchema, "params"), validate(createAvailabilityBlockSchema), availabilityBlocks.createBlock);
+router.get("/:productId/availability-blocks", authMiddleware,
+  validate(productIdParamSchema, "params"), availabilityBlocks.getBlocks);
+router.delete("/:productId/availability-blocks/:blockId", authMiddleware,
+  validate(availabilityBlockParamsSchema, "params"), availabilityBlocks.deleteBlock);
+
 
 router.get("/:productId/availability",
   validate(productIdParamSchema, "params"),

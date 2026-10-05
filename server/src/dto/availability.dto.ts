@@ -1,6 +1,7 @@
 export interface AvailabilityDayDTO {
   date: string;
   reservedQuantity: number;
+  blockedQuantity: number;
   availableQuantity: number;
   status: "AVAILABLE" | "PARTIAL" | "FULL";
 }
