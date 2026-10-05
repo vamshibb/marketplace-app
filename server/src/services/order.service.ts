@@ -1,4 +1,5 @@
 import { validateRentalRequest } from "./rentalRules";
+import { calculateRentalAvailability } from "./rentalAvailability";
 import {
   OrderStatus,
   Prisma,
@@ -150,7 +151,19 @@ export const createOrder = async (
   );
 
   if (product.listingType === "RENT") {
-    data = { ...data, ...validateRentalRequest(product, data) };
+    const dates = validateRentalRequest(product, data);
+    data = { ...data, ...dates };
+    // Early validation only: PENDING requests do not reserve inventory.
+    // Seller acceptance retains the authoritative Serializable check.
+    const reservations = await orderRepository.findOverlappingRentalReservations(
+      product.id, dates.requestedFrom, dates.requestedTo,
+    );
+    const days = calculateRentalAvailability(
+      product.quantityAvailable, dates.requestedFrom, dates.requestedTo, reservations,
+    );
+    if (days.some(day => day.availableQuantity < (data.quantity ?? 1))) {
+      throw new AppError("Requested rental dates are no longer available for the selected quantity.", 409);
+    }
   }
 
   const buyer = await ensureUserExists(buyerId);
