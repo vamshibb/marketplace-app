@@ -1,3 +1,4 @@
+import { publishAvailabilityChanged } from "../utils/availabilityPublisher";
 import { findOverlappingAvailabilityBlocks } from "../repositories/rentalInventory.repository";
 import { validateRentalRequest } from "./rentalRules";
 import { calculateRentalAvailability } from "../utils/rentalAvailability";
@@ -216,6 +217,9 @@ export const acceptOrder = async (
     );
   }
   if (!updatedOrder) throw new AppError("Only pending orders can be accepted.", 409);
+  if (order.transactionType === "RENT") {
+    publishAvailabilityChanged(order.productId, "RENTAL_ACCEPTED");
+  }
 
   const seller = await ensureUserExists(sellerId);
 
@@ -354,6 +358,9 @@ export const transitionRental = async (orderId: string, userId: string, action: 
     orderId, transition.to, transition.from, actor, "RENT"
   );
   if (!updated) throw new AppError("Order changed concurrently. Please refresh and try again.", 409);
+  if (action === "confirm-return") {
+    publishAvailabilityChanged(order.productId, "RENTAL_COMPLETED");
+  }
   await notificationService.notifyRentalTransition({
     recipientId: transition.role === "seller" ? updated.buyerId : updated.sellerId,
     sender: transition.role === "seller" ? updated.seller : updated.buyer,

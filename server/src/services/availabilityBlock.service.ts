@@ -1,3 +1,4 @@
+import { publishAvailabilityChanged } from "../utils/availabilityPublisher";
 import { Prisma } from "../generated/prisma";
 import * as repository from "../repositories/availabilityBlock.repository";
 import { AppError } from "../errors/AppError";
@@ -27,6 +28,7 @@ export const createBlock = async (productId: string, userId: string, input: Crea
         throw new AppError("Requested availability block exceeds available rental capacity.", 409);
       }
     });
+    publishAvailabilityChanged(productId, "BLOCK_CREATED");
     return toAvailabilityBlockDTO(block);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
@@ -44,4 +46,5 @@ export const deleteBlock = async (productId: string, blockId: string, userId: st
   ensureOwner(await repository.findBlockProduct(productId), userId);
   const result = await repository.deleteBlock(productId, blockId, userId);
   if (!result.count) throw new AppError("Availability block not found", 404);
+  publishAvailabilityChanged(productId, "BLOCK_DELETED");
 };

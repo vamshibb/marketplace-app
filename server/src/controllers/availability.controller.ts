@@ -1,3 +1,4 @@
+import { openAvailabilityStream } from "../services/availabilityStream.service";
 import type { Request, Response, NextFunction } from "express";
 import { getProductAvailability as getAvailability } from "../services/availability.service";
 import { availabilityQuerySchema } from "../validators/availability.validator";
@@ -8,6 +9,14 @@ export const getProductAvailability = async (req: Request, res: Response, next: 
     const query = availabilityQuerySchema.parse(req.query);
     const availability = await getAvailability(req.params.productId, query);
     res.json(successResponse(availability));
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const streamProductAvailability = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await openAvailabilityStream(req.params.productId, res);
   } catch (error) {
     next(error);
   }

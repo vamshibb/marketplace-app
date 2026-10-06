@@ -27,7 +27,7 @@ import { upload } from "../middleware/upload.middleware";
 import {
   productIdParamSchema,
 } from "../validators/commonValidators";
-import { getProductAvailability } from "../controllers/availability.controller";
+import { getProductAvailability, streamProductAvailability } from "../controllers/availability.controller";
 import { availabilityQuerySchema } from "../validators/availability.validator";
 
 const router = Router();
@@ -39,6 +39,11 @@ router.get("/:productId/availability-blocks", authMiddleware,
 router.delete("/:productId/availability-blocks/:blockId", authMiddleware,
   validate(availabilityBlockParamsSchema, "params"), availabilityBlocks.deleteBlock);
 
+
+router.get("/:productId/availability/stream",
+  validate(productIdParamSchema, "params"),
+  streamProductAvailability,
+);
 
 router.get("/:productId/availability",
   validate(productIdParamSchema, "params"),
