@@ -3,8 +3,10 @@ import { getProductAvailability } from "../api/availabilityApi";
 import { ordersQueryKeys } from "../queryKeys";
 import { shiftMonth } from "../utils/rentalCalendarDates";
 import type { AvailabilityDay } from "../availabilityTypes";
+import { useAvailabilityStream } from "./useAvailabilityStream";
 
 export const useRentalAvailability = (productId: string, months: string[], visibleMonth = months[0]) => {
+  useAvailabilityStream(productId, months.length > 0);
   const queries = useQueries({ queries: months.map(from => ({
     queryKey: ordersQueryKeys.availability(productId, from, shiftMonth(from, 1)),
     queryFn: ({ signal }: { signal: AbortSignal }) => getProductAvailability(productId, from, shiftMonth(from, 1), signal),
