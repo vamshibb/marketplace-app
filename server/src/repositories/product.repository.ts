@@ -1,6 +1,7 @@
 import { userSummarySelect } from "./user.select";
 import { prisma } from "../prisma/client";
 import { Prisma } from "../generated/prisma";
+import { findRentalReservations, findAvailabilityBlocks } from "./rentalInventory.repository";
 
 export const productSummaryInclude = {
   seller: {
@@ -137,14 +138,42 @@ export const createProduct = (
   });
 };
 
-export const updateProduct = (
+type ProductEditSnapshot = {
+  product: Awaited<ReturnType<typeof prisma.product.findUnique>>;
+  reservations: Awaited<ReturnType<typeof findRentalReservations>>;
+  blocks: Awaited<ReturnType<typeof findAvailabilityBlocks>>;
+  hasPendingRental: boolean;
+};
+
+export const updateProductAtomically = async (
   id: string,
-  data: Prisma.ProductUncheckedUpdateInput
+  data: Prisma.ProductUncheckedUpdateInput,
+  validate: (snapshot: ProductEditSnapshot) => void,
 ) => {
-  return prisma.product.update({
-    where: { id },
-    data,
-  });
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(async tx => {
+        const product = await tx.product.findUnique({ where: { id } });
+        const converting = product?.listingType === "RENT" && data.listingType === "SALE";
+        const reducing = product?.listingType === "RENT" && typeof data.quantityAvailable === "number" &&
+          data.quantityAvailable < product.quantityAvailable;
+        const reservations = converting || reducing ? await findRentalReservations(id, tx) : [];
+        const blocks = converting || reducing ? await findAvailabilityBlocks(id, tx) : [];
+        const pending = converting ? await tx.order.findFirst({
+          where: { productId: id, transactionType: "RENT", status: "PENDING" }, select: { id: true },
+        }) : null;
+        validate({ product, reservations, blocks, hasPendingRental: Boolean(pending) });
+        return tx.product.update({ where: { id }, data });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
+      throw error;
+    }
+  }
 };
 
 export const deleteProduct = (id: string) => {

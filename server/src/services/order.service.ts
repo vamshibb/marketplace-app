@@ -177,7 +177,21 @@ export const createOrder = async (
     data
   );
 
-  const order = await orderRepository.createOrder(orderData);
+  let order;
+  try {
+    order = product.listingType === "RENT"
+      ? await orderRepository.createRentalOrderAtomically(orderData, current => {
+        if (!current || current.listingType !== "RENT") {
+          throw new AppError("Listing is no longer available for rental requests. Please refresh and try again.", 409);
+        }
+      })
+      : await orderRepository.createOrder(orderData);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      throw new AppError("Rental state changed concurrently. Please refresh and try again.", 409);
+    }
+    throw error;
+  }
 
   await notificationService.notifyOrderCreated({
     recipientId: product.sellerId,

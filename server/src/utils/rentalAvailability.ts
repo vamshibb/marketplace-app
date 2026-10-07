@@ -13,6 +13,31 @@ const utcDay = (date: Date): number => {
   return normalized.setUTCHours(0, 0, 0, 0);
 };
 
+interface Block { blockedFrom: Date; blockedTo: Date; quantity: number }
+
+const capacityIntervals = (reservations: readonly Reservation[], blocks: readonly Block[]) => [
+  ...reservations.map(item => ({ from: item.requestedFrom, to: item.requestedTo, quantity: item.quantity, blocked: false })),
+  ...blocks.map(item => ({ from: item.blockedFrom, to: item.blockedTo, quantity: item.quantity, blocked: true })),
+].flatMap(item => item.from && item.to && utcDay(item.from) < utcDay(item.to)
+  ? [{ ...item, from: utcDay(item.from), to: utcDay(item.to) }] : []);
+
+// Sweep the same UTC [start, end) intervals without allocating days across
+// potentially years of commitments. Adjacent end/start events share a boundary.
+export const peakRentalCapacity = (reservations: readonly Reservation[], blocks: readonly Block[]): number => {
+  const changes = new Map<number, number>();
+  for (const item of capacityIntervals(reservations, blocks)) {
+    changes.set(item.from, (changes.get(item.from) ?? 0) + item.quantity);
+    changes.set(item.to, (changes.get(item.to) ?? 0) - item.quantity);
+  }
+  let consumed = 0;
+  let peak = 0;
+  for (const [, change] of [...changes].sort(([a], [b]) => a - b)) {
+    consumed += change;
+    peak = Math.max(peak, consumed);
+  }
+  return peak;
+};
+
 // Pure calculation over a validated range. End dates never consume inventory.
 // Difference-array accumulation keeps work proportional to reservations + days.
 export const calculateRentalAvailability = (
@@ -20,24 +45,20 @@ export const calculateRentalAvailability = (
   from: Date,
   to: Date,
   reservations: readonly Reservation[],
-  blocks: readonly { blockedFrom: Date; blockedTo: Date; quantity: number }[] = [],
+  blocks: readonly Block[] = [],
 ): AvailabilityDayDTO[] => {
   const start = utcDay(from);
   const dayCount = (utcDay(to) - start) / UTC_DAY_MS;
   const changes = new Array<number>(dayCount + 1).fill(0);
   const blockedChanges = new Array<number>(dayCount + 1).fill(0);
-  const accumulate = (from: Date | null, to: Date | null, quantity: number, target: number[]) => {
-    if (!from || !to) return;
-    const first = Math.max(0, (utcDay(from) - start) / UTC_DAY_MS);
-    const end = Math.min(dayCount, (utcDay(to) - start) / UTC_DAY_MS);
-    if (first >= end) return;
-    target[first] += quantity;
-    target[end] -= quantity;
-  };
-  for (const reservation of reservations) {
-    accumulate(reservation.requestedFrom, reservation.requestedTo, reservation.quantity, changes);
+  for (const item of capacityIntervals(reservations, blocks)) {
+    const first = Math.max(0, (item.from - start) / UTC_DAY_MS);
+    const end = Math.min(dayCount, (item.to - start) / UTC_DAY_MS);
+    if (first >= end) continue;
+    const target = item.blocked ? blockedChanges : changes;
+    target[first] += item.quantity;
+    target[end] -= item.quantity;
   }
-  for (const block of blocks) accumulate(block.blockedFrom, block.blockedTo, block.quantity, blockedChanges);
   let blockedQuantity = 0;
   let reservedQuantity = 0;
   return Array.from({ length: dayCount }, (_, index) => {

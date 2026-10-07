@@ -146,6 +146,30 @@ export const createOrder = (
   });
 };
 
+// Reading the listing and inserting PENDING in one Serializable transaction
+// conflicts with a RENT-to-SALE edit's pending-order predicate/product write.
+export const createRentalOrderAtomically = async (
+  data: Prisma.OrderUncheckedCreateInput,
+  validate: (product: { listingType: string } | null) => void,
+) => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(async tx => {
+        const product = await tx.product.findUnique({ where: { id: data.productId }, select: { listingType: true } });
+        validate(product);
+        return tx.order.create({ data, select: orderSelect });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
+      throw error;
+    }
+  }
+};
+
 // The status and actor predicates are part of the UPDATE, not just a prior read.
 export const updateOrderStatus = async (
   id: string,
