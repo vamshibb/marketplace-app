@@ -152,6 +152,10 @@ export const createOrder = async (
     buyerId
   );
 
+  if (product.listingType === "SALE" && (data.quantity ?? 1) > product.quantityAvailable) {
+    throw new AppError("Requested quantity exceeds available stock.", 409);
+  }
+
   if (product.listingType === "RENT") {
     const dates = validateRentalRequest(product, data);
     data = { ...data, ...dates };
@@ -226,9 +230,17 @@ export const acceptOrder = async (
     }
     updatedOrder = result.order;
   } else {
-    updatedOrder = await orderRepository.updateOrderStatus(
-      orderId, OrderStatus.ACCEPTED, OrderStatus.PENDING, { sellerId }
-    );
+    const result = await orderRepository.acceptSaleOrder(orderId, sellerId);
+    if (result.kind === "unavailable") {
+      throw new AppError("Insufficient stock to accept this order. The order remains pending.", 409);
+    }
+    if (result.kind === "not-sale") {
+      throw new AppError("Cannot accept this order because the product is no longer a SALE listing.", 409);
+    }
+    if (result.kind === "conflict") {
+      throw new AppError("Order or stock changed concurrently. Please refresh and try again.", 409);
+    }
+    updatedOrder = result.order;
   }
   if (!updatedOrder) throw new AppError("Only pending orders can be accepted.", 409);
   if (order.transactionType === "RENT") {

@@ -7,6 +7,47 @@ import {
 } from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
+// Stock and order status commit together. The stock predicate prevents
+// overselling; a failed conditional order update rolls back the decrement.
+export const acceptSaleOrder = async (id: string, sellerId: string) => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(async tx => {
+        const order = await tx.order.findUnique({ where: { id }, select: orderSelect });
+        if (!order || order.sellerId !== sellerId || order.status !== OrderStatus.PENDING ||
+            order.transactionType !== "SALE" || !Number.isInteger(order.quantity) || order.quantity < 1) {
+          return { kind: "conflict" as const };
+        }
+        const product = await tx.product.findUnique({
+          where: { id: order.productId }, select: { listingType: true },
+        });
+        if (!product || product.listingType !== "SALE") return { kind: "not-sale" as const };
+        const stock = await tx.product.updateMany({
+          where: { id: order.productId, listingType: "SALE", quantityAvailable: { gte: order.quantity } },
+          data: { quantityAvailable: { decrement: order.quantity } },
+        });
+        if (!stock.count) return { kind: "unavailable" as const };
+        const updated = await tx.order.update({
+          where: { id, sellerId, status: OrderStatus.PENDING, transactionType: "SALE" },
+          data: { status: OrderStatus.ACCEPTED },
+          select: orderSelect,
+        });
+        return { kind: "accepted" as const, order: updated };
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2034" && attempt < 2) continue;
+        if (error.code === "P2034" || error.code === "P2025") return { kind: "conflict" as const };
+      }
+      throw error;
+    }
+  }
+};
+
 // All reservation reads and the conditional acceptance share a serializable snapshot.
 // Predicate conflicts between overlapping accepts cause P2034 and a fresh retry.
 export const acceptRentalOrder = async (id: string, sellerId: string) => {
