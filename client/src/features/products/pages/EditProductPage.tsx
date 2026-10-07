@@ -45,6 +45,7 @@ export const EditProductPage = () => {
     <main className="p-4">
       <h1 className="mb-4">Edit Product</h1>
       <ProductForm
+        key={product.id}
         initialValues={{
           title: product.title,
           description: product.description,

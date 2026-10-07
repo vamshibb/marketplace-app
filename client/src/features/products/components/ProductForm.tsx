@@ -54,10 +54,14 @@ export const ProductForm = ({
     defaultValues: initialValues,
   });
   const listingType = useWatch({ control, name: "listingType" });
+  const { title, description, price, categoryId, listingType: initialListingType,
+    quantityAvailable, minRentalDays, maxRentalDays } = initialValues;
 
   useEffect(() => {
-    reset(initialValues);
-  }, [initialValues, reset]);
+    reset({ title, description, price, categoryId, listingType: initialListingType,
+      quantityAvailable, minRentalDays, maxRentalDays });
+  }, [title, description, price, categoryId, initialListingType,
+    quantityAvailable, minRentalDays, maxRentalDays, reset]);
 
   return (
     <>

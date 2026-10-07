@@ -11,8 +11,8 @@ export const useRegisterMutation = () => {
   return useMutation({
     mutationFn: register,
     onSuccess: (session) => {
-      queryClient.setQueryData(authQueryKeys.currentUser(), session.user);
       setToken(session.token);
+      queryClient.setQueryData(authQueryKeys.currentUser(), session.user);
     },
   });
 };

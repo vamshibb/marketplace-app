@@ -18,6 +18,8 @@ export interface CreatedReview {
   id: string;
   // Present in product-review creation responses only.
   productId?: string;
+  // Present in user-review creation responses only.
+  revieweeId?: string;
 }
 
 export interface ProductReview {

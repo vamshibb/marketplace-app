@@ -1,24 +1,30 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, type PropsWithChildren } from "react";
+import { isAxiosError } from "axios";
 
 import { useAuthStore } from "../../features/auth/hooks/useAuthStore";
 import { useCurrentUserQuery } from "../../features/auth/hooks/useCurrentUserQuery";
-import { authQueryKeys } from "../../features/auth/queryKeys";
+import { clearSessionCache } from "./sessionCache";
 
 export const AuthInitializer = ({ children }: PropsWithChildren) => {
   const queryClient = useQueryClient();
   const token = useAuthStore((state) => state.token);
   const clearToken = useAuthStore((state) => state.clearToken);
-  const {isError} = useCurrentUserQuery();
+  const { error } = useCurrentUserQuery();
+
+  useEffect(() => useAuthStore.subscribe((state, previous) => {
+    if (state.token !== previous.token) clearSessionCache(queryClient);
+  }), [queryClient]);
 
   useEffect(() => {
-    if (!token || !isError) {
+    // The backend uses 401 for missing/invalid tokens. Network failures,
+    // forbidden resources, and server outages are not session invalidation.
+    if (!token || !isAxiosError(error) || error.response?.status !== 401) {
       return;
     }
 
     clearToken();
-    queryClient.removeQueries({ queryKey: authQueryKeys.currentUser() });
-  }, [clearToken, isError, queryClient, token]);
+  }, [clearToken, error, token]);
 
   return children;
 };
