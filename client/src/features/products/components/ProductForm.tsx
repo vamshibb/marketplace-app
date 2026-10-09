@@ -27,6 +27,7 @@ interface ProductFormProps {
   mediaPanel?: ReactNode;
   onCancel?: () => void;
   detailsDisabled?: boolean;
+  submitDisabled?: boolean;
 }
 
 export const ProductForm = ({
@@ -39,6 +40,7 @@ export const ProductForm = ({
   mediaPanel,
   onCancel,
   detailsDisabled = false,
+  submitDisabled = false,
 }: ProductFormProps) => {
   const categoriesQuery = useCategoriesQuery();
   const {
@@ -66,19 +68,19 @@ export const ProductForm = ({
   return (
     <>
       {errorMessage && (
-        <p className="mb-4" role="alert">
+        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
           {errorMessage}
         </p>
       )}
 
-      <form className="space-y-4" noValidate onSubmit={handleSubmit(values => onSubmit({
+      <form className="space-y-4" aria-busy={isPending || undefined} noValidate onSubmit={handleSubmit(values => onSubmit({
         ...values,
         minRentalDays: values.listingType === "SALE" ? null : values.minRentalDays ?? null,
         maxRentalDays: values.listingType === "SALE" ? null : values.maxRentalDays ?? null,
       }))}>
         <div className={mediaPanel ? "grid items-stretch gap-5 lg:grid-cols-2" : undefined}>
-        <fieldset disabled={isPending || detailsDisabled} className={mediaPanel ? "flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_label]:mb-1.5 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-300 [&_input]:px-3 [&_input]:py-2.5 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-300 [&_select]:px-3 [&_select]:py-2.5 [&_textarea]:min-h-36 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:px-3 [&_textarea]:py-2.5 [&_p]:text-sm [&_p]:text-red-600" : "space-y-4"}>
-        {mediaPanel && <h2 className="text-lg font-semibold text-slate-900">Listing details</h2>}
+        <fieldset disabled={isPending || detailsDisabled} className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_label]:mb-1.5 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-300 [&_input]:px-3 [&_input]:py-2.5 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-300 [&_select]:px-3 [&_select]:py-2.5 [&_textarea]:min-h-36 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:px-3 [&_textarea]:py-2.5 [&_p]:text-sm [&_p]:text-red-600">
+        <h2 className="text-lg font-semibold text-slate-900">Listing details</h2>
         <div role="group" aria-label="Listing type" className="flex gap-1 self-start rounded-lg border border-slate-200 bg-slate-50 p-1">
           <input type="hidden" {...register("listingType")} />
           {(["SALE", "RENT"] as const).map(type => (
@@ -110,7 +112,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className={mediaPanel ? "order-5" : undefined}>
+        <div className="order-5">
           <label htmlFor="description">Description</label>
           <textarea
             id="description"
@@ -127,7 +129,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className={mediaPanel ? "order-2" : undefined}>
+        <div className="order-2">
           <label htmlFor="price">{listingType === "RENT" ? "Price per day" : "Price"}</label>
           <input
             id="price"
@@ -144,7 +146,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className={mediaPanel ? "order-1" : undefined}>
+        <div className="order-1">
           <label htmlFor="categoryId">Category</label>
           <select
             id="categoryId"
@@ -177,7 +179,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className={mediaPanel ? "order-3" : undefined}>
+        <div className="order-3">
           <label htmlFor="quantityAvailable">Quantity available</label>
           <input id="quantityAvailable" type="number" min={1} step={1}
             aria-invalid={Boolean(errors.quantityAvailable)} aria-describedby={errors.quantityAvailable ? "quantity-error" : undefined}
@@ -198,9 +200,9 @@ export const ProductForm = ({
         </fieldset>
         {mediaPanel}
         </div>
-        <div className={mediaPanel ? "flex justify-end gap-3" : undefined}>
+        <div className="flex justify-end gap-3">
         {onCancel && <Button variant="secondary" disabled={isPending} onClick={onCancel}>Cancel</Button>}
-        <Button type="submit" disabled={isPending} aria-busy={isPending || undefined}>
+        <Button type="submit" disabled={isPending || submitDisabled} aria-busy={isPending || undefined}>
           {isPending ? pendingLabel : submitLabel}
         </Button>
         </div>

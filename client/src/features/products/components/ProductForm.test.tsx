@@ -53,3 +53,23 @@ it("initializes genuinely changed product data after an unsaved edit", async () 
   await user.click(screen.getByRole("button", { name: "Save Changes" }));
   await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(next));
 });
+
+it("validates rental limits and clears rental settings when switching to SALE", async () => {
+  const { user, onSubmit } = await setup();
+  await user.clear(screen.getByLabelText("Minimum rental days (optional)"));
+  await user.type(screen.getByLabelText("Minimum rental days (optional)"), "10");
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+  expect((await screen.findByRole("alert")).textContent).toBe("Maximum rental days must be at least the minimum");
+  expect(onSubmit).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "For Sale" }));
+  expect(screen.queryByLabelText("Minimum rental days (optional)")).toBeNull();
+  expect(screen.queryByLabelText("Maximum rental days (optional)")).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({
+    ...initialValues, listingType: "SALE", minRentalDays: null, maxRentalDays: null,
+  }));
+  await user.click(screen.getByRole("button", { name: "For Rent" }));
+  expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Minimum rental days (optional)" }).value).toBe("");
+  expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Maximum rental days (optional)" }).value).toBe("");
+});
