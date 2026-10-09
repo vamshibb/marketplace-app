@@ -6,6 +6,7 @@ import {
   Prisma,
 } from "../generated/prisma";
 import { prisma } from "../prisma/client";
+import { normalizeTransactionConflict } from "../utils/transactionConflict";
 
 // Stock and order status commit together. The stock predicate prevents
 // overselling; a failed conditional order update rolls back the decrement.
@@ -38,7 +39,8 @@ export const acceptSaleOrder = async (id: string, sellerId: string) => {
         maxWait: 10_000,
         timeout: 15_000,
       });
-    } catch (error) {
+    } catch (caught) {
+      const error = normalizeTransactionConflict(caught);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === "P2034" && attempt < 2) continue;
         if (error.code === "P2034" || error.code === "P2025") return { kind: "conflict" as const };
@@ -81,7 +83,8 @@ export const acceptRentalOrder = async (id: string, sellerId: string) => {
         maxWait: 10_000,
         timeout: 15_000,
       });
-    } catch (error) {
+    } catch (caught) {
+      const error = normalizeTransactionConflict(caught);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === "P2034" && attempt < 2) continue;
         if (error.code === "P2034" || error.code === "P2025") return { kind: "conflict" as const };
@@ -204,7 +207,8 @@ export const createRentalOrderAtomically = async (
         maxWait: 10_000,
         timeout: 15_000,
       });
-    } catch (error) {
+    } catch (caught) {
+      const error = normalizeTransactionConflict(caught);
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
       throw error;
     }

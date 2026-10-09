@@ -1,6 +1,7 @@
 import { userSummarySelect } from "./user.select";
 import { prisma } from "../prisma/client";
 import { Prisma } from "../generated/prisma";
+import { normalizeTransactionConflict } from "../utils/transactionConflict";
 import { findRentalReservations, findAvailabilityBlocks } from "./rentalInventory.repository";
 
 export const productSummaryInclude = {
@@ -169,7 +170,8 @@ export const updateProductAtomically = async (
         maxWait: 10_000,
         timeout: 15_000,
       });
-    } catch (error) {
+    } catch (caught) {
+      const error = normalizeTransactionConflict(caught);
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
       throw error;
     }
