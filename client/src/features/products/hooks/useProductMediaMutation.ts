@@ -18,7 +18,7 @@ export const useProductMediaMutation = (productId: string, disabled: boolean) =>
   const client = useQueryClient();
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [recovery, setRecovery] = useState(false);
+  const [recovery, setRecovery] = useState<false | "upload" | "replacement">(false);
   const [refreshed, setRefreshed] = useState(false);
   const replacement = useRef<{ originalId: string; uploadedId: string } | null>(null);
   // A failed response may still have committed. Verify before repeating any POST.
@@ -122,7 +122,7 @@ export const useProductMediaMutation = (productId: string, disabled: boolean) =>
       ]);
     },
     onError: (_error, action) => {
-      if (action.type === "upload" || action.type === "replace") setRecovery(true);
+      if (action.type === "upload" || action.type === "replace") setRecovery(replacement.current ? "replacement" : "upload");
     },
     onSettled: () => { starting.current = false; },
   });
@@ -133,7 +133,7 @@ export const useProductMediaMutation = (productId: string, disabled: boolean) =>
     : `${({ upload: "Upload", replace: "Replacement", remove: "Delete", reorder: "Reorder", refresh: "Refresh" } as const)[mutation.variables?.type ?? "refresh"]} failed. ${
       typeof serverMessage === "string" && serverMessage.trim() ? serverMessage
         : mutation.error instanceof Error && !isAxiosError(mutation.error) ? mutation.error.message : "Please retry or refresh media."}`;
-  const recoveryMessage = recovery && !mutation.isPending ? replacement.current
+  const recoveryMessage = recovery && !mutation.isPending ? recovery === "replacement"
     ? "Replacement uploaded, but finishing failed. Retry resumes without uploading again, or refresh to review both items."
     : "Files are retained. Retry verifies saved media before uploading again, or refresh to review." : undefined;
   const run = (action: ProductMediaAction, onSuccess?: () => void): void => {
@@ -144,7 +144,7 @@ export const useProductMediaMutation = (productId: string, disabled: boolean) =>
     mutation.mutate(action, { onSuccess });
   };
   return { run, isPending: mutation.isPending || pendingCount > 0, action: mutation.variables?.type,
-    isSuccess: mutation.isSuccess, forbidden, errorMessage, uploadProgress, uploading, recovery, recoveryMessage,
+    isSuccess: mutation.isSuccess, forbidden, errorMessage, uploadProgress, uploading, recovery: Boolean(recovery), recoveryMessage,
     canKeepRefreshed: recovery && refreshed,
     keepRefreshed: () => {
       if (mutation.isPending || !refreshed) return;

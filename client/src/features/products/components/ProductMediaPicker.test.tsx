@@ -36,3 +36,29 @@ it("keeps ten Create slots through selection, validation and removal", async () 
   expect(within(slots()[0]).getByText("Cover")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Add media in slot 10" })).toBeTruthy();
 });
+
+
+it.each([
+  ["text/plain", 1, "Choose JPEG, PNG, WebP, MP4, MOV or WebM files."],
+  ["image/png", 10 * 1024 * 1024 + 1, "Images must be 10 MB or smaller."],
+  ["video/mp4", 100 * 1024 * 1024 + 1, "Videos must be 100 MB or smaller."],
+])("rejects invalid %s media without changing existing selections", async (type, size, message) => {
+  vi.stubGlobal("URL", class extends URL {
+    static createObjectURL = vi.fn(() => "blob:selected");
+    static revokeObjectURL = vi.fn();
+  });
+  const existing = new File(["photo"], "existing.png", { type: "image/png" });
+  const onChange = vi.fn();
+  render(<ProductMediaPicker files={[existing]} onChange={onChange} disabled={false} />);
+  const invalid = new File(["invalid"], "invalid", { type });
+  Object.defineProperty(invalid, "size", { value: size });
+  const user = userEvent.setup({ applyAccept: false });
+  await user.upload(screen.getByLabelText("Choose photos and videos"), invalid);
+  expect(screen.getByRole("alert").textContent).toBe(message);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(screen.getByAltText("existing.png")).toBeTruthy();
+  const valid = new File(["photo"], "valid.png", { type: "image/png" });
+  await user.upload(screen.getByLabelText("Choose photos and videos"), valid);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(onChange).toHaveBeenCalledExactlyOnceWith([existing, valid]);
+});

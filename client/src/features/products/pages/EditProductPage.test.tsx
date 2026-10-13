@@ -105,6 +105,10 @@ it("saves all fields, shows pending state, and refreshes product/list/availabili
   await user.click(screen.getByRole("button", { name: "Save changes" }));
   expect((await screen.findByRole<HTMLButtonElement>("button", { name: "Saving..." })).disabled).toBe(true);
   expect(screen.getByLabelText("Title").closest("fieldset")?.disabled).toBe(true);
+  for (const name of ["Refresh media", "Add media in slot 1", "Cancel"]) {
+    expect(screen.getByRole<HTMLButtonElement>("button", { name }).disabled).toBe(true);
+  }
+  expect(screen.getByLabelText<HTMLInputElement>("Choose photos and videos").disabled).toBe(true);
   expect(put).toHaveBeenCalledExactlyOnceWith("/products/camera", {
     title: "Updated camera", description: "Updated listing description", price: 35, categoryId: "tools",
     listingType: "RENT", quantityAvailable: 4, minRentalDays: 2, maxRentalDays: 14,

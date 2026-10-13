@@ -98,7 +98,9 @@ it("retains a failed reorder and failed refresh draft, then shows authoritative 
 it("keeps selected files after upload failure, blocks overlapping actions, and merges successful uploads into caches", async () => {
   const post = vi.spyOn(api, "post").mockRejectedValueOnce(httpError(500));
   const { user, title, client, get } = await mountEditor();
-  client.setQueryData(productsQueryKeys.list({}), { products: [listing] });
+  const unrelated = { ...listing, id: "unrelated", title: "Other listing" };
+  client.setQueryData(productsQueryKeys.detail(unrelated.id), unrelated);
+  client.setQueryData(productsQueryKeys.list({}), { products: [listing, unrelated] });
   client.setQueryData(productsQueryKeys.mine(owner.id), [listing]);
   client.setQueryData(favoritesQueryKeys.list(owner.id), [{ productId: product.id, product: listing }]);
   await user.upload(screen.getByLabelText("Choose photos and videos"), new File(["photo"], "new.png", { type: "image/png" }));
@@ -120,6 +122,9 @@ it("keeps selected files after upload failure, blocks overlapping actions, and m
   expect(client.getQueryData<{products: ProductDetail[]}>(productsQueryKeys.list({}))?.products[0].media).toHaveLength(4);
   expect(client.getQueryData<ProductDetail[]>(productsQueryKeys.mine(owner.id))?.[0].media).toHaveLength(4);
   expect(client.getQueryData<{product: ProductDetail}[]>(favoritesQueryKeys.list(owner.id))?.[0].product.media).toHaveLength(4);
+  expect(client.getQueryData<{products: ProductDetail[]}>(productsQueryKeys.list({}))?.products[1]).toEqual(unrelated);
+  expect(client.getQueryData(productsQueryKeys.detail(unrelated.id))).toEqual(unrelated);
+  expect(get.mock.calls.filter(([url]) => url === "/products/camera")).toHaveLength(1);
   expect(title.value).toBe("Unsaved title");
 });
 
@@ -194,7 +199,7 @@ it("shows no add slot for ten persisted items", async () => {
 it("shows upload progress and keeps media controls disabled until the response completes", async () => {
   let finish!: (value: { data: { data: ProductMedia[] } }) => void;
   const post = vi.spyOn(api, "post").mockImplementation(() => new Promise(resolve => { finish = resolve; }));
-  const { user, title } = await mountEditor();
+  const { user, title, put } = await mountEditor();
   await user.upload(screen.getByLabelText("Choose photos and videos"), new File(["photo"], "progress.png", { type: "image/png" }));
   await user.click(screen.getByRole("button", { name: "Upload 1 file" }));
   await waitFor(() => expect(post).toHaveBeenCalledOnce());
@@ -202,6 +207,8 @@ it("shows upload progress and keeps media controls disabled until the response c
   expect(screen.getByRole<HTMLProgressElement>("progressbar").value).toBe(50);
   expect(screen.getByText("Uploading media: 50%")).toBeTruthy();
   expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save changes" }).disabled).toBe(true);
+  await user.type(title, "{Enter}");
+  expect(put).not.toHaveBeenCalled();
   await act(async () => finish({ data: { data: [{ ...media[0], id: "added", sortOrder: 3 }] } }));
   await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
   expect(title.value).toBe("Unsaved title");
@@ -353,5 +360,22 @@ it("preserves a drafted drag order when replacing an item", async () => {
   expect(patch).toHaveBeenCalledExactlyOnceWith("/products/camera/media/order", { mediaIds: ["back", "replacement", "video", "front"] });
   expect(screen.queryByRole("button", { name: "Save order" })).toBeNull();
   expect(client.getQueryData<ProductDetail>(productsQueryKeys.detail(product.id))?.media.map(item => item.sortOrder)).toEqual([0, 1, 2]);
+  expect(title.value).toBe("Unsaved title");
+});
+
+
+it("clears obsolete file-validation feedback after refresh and successful removal", async () => {
+  const { user, title } = await mountEditor();
+  const files = Array.from({ length: 8 }, (_, index) => new File(["photo"], `${index}.png`, { type: "image/png" }));
+  await user.upload(screen.getByLabelText("Choose photos and videos"), files);
+  expect(screen.getByRole("alert").textContent).toContain("up to 10");
+  await user.click(screen.getByRole("button", { name: "Refresh media" }));
+  await screen.findByText("Media refreshed.");
+  expect(screen.queryByRole("alert")).toBeNull();
+  await user.upload(screen.getByLabelText("Choose photos and videos"), files);
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  vi.spyOn(api, "delete").mockResolvedValue({ data: {} });
+  await user.click(screen.getByRole("button", { name: "Remove image 1" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   expect(title.value).toBe("Unsaved title");
 });

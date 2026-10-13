@@ -73,3 +73,13 @@ it("validates rental limits and clears rental settings when switching to SALE", 
   expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Minimum rental days (optional)" }).value).toBe("");
   expect(screen.getByRole<HTMLInputElement>("spinbutton", { name: "Maximum rental days (optional)" }).value).toBe("");
 });
+
+
+it("tabs through listing fields in the same order they are displayed", async () => {
+  const { user } = await setup();
+  screen.getByLabelText("Title").focus();
+  for (const label of ["Category", "Price per day", "Quantity available", "Minimum rental days (optional)", "Maximum rental days (optional)", "Description"]) {
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByLabelText(label));
+  }
+});

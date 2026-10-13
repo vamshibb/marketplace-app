@@ -112,41 +112,7 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className="order-5">
-          <label htmlFor="description">Description</label>
-          <textarea
-            id="description"
-            aria-invalid={Boolean(errors.description)}
-            aria-describedby={
-              errors.description ? "description-error" : undefined
-            }
-            {...register("description")}
-          />
-          {errors.description && (
-            <p id="description-error" role="alert">
-              {errors.description.message}
-            </p>
-          )}
-        </div>
-
-        <div className="order-2">
-          <label htmlFor="price">{listingType === "RENT" ? "Price per day" : "Price"}</label>
-          <input
-            id="price"
-            type="number"
-            step="any"
-            aria-invalid={Boolean(errors.price)}
-            aria-describedby={errors.price ? "price-error" : undefined}
-            {...register("price", { valueAsNumber: true })}
-          />
-          {errors.price && (
-            <p id="price-error" role="alert">
-              {errors.price.message}
-            </p>
-          )}
-        </div>
-
-        <div className="order-1">
+        <div>
           <label htmlFor="categoryId">Category</label>
           <select
             id="categoryId"
@@ -179,14 +145,31 @@ export const ProductForm = ({
           )}
         </div>
 
-        <div className="order-3">
+        <div>
+          <label htmlFor="price">{listingType === "RENT" ? "Price per day" : "Price"}</label>
+          <input
+            id="price"
+            type="number"
+            step="any"
+            aria-invalid={Boolean(errors.price)}
+            aria-describedby={errors.price ? "price-error" : undefined}
+            {...register("price", { valueAsNumber: true })}
+          />
+          {errors.price && (
+            <p id="price-error" role="alert">
+              {errors.price.message}
+            </p>
+          )}
+        </div>
+
+        <div>
           <label htmlFor="quantityAvailable">Quantity available</label>
           <input id="quantityAvailable" type="number" min={1} step={1}
             aria-invalid={Boolean(errors.quantityAvailable)} aria-describedby={errors.quantityAvailable ? "quantity-error" : undefined}
             {...register("quantityAvailable", { valueAsNumber: true })} />
           {errors.quantityAvailable && <p id="quantity-error" role="alert">{errors.quantityAvailable.message}</p>}
         </div>
-        {listingType === "RENT" && <div className="order-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {listingType === "RENT" && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(["minRentalDays", "maxRentalDays"] as const).map(name => (
             <div key={name}>
               <label htmlFor={name}>{name === "minRentalDays" ? "Minimum rental days" : "Maximum rental days"} (optional)</label>
@@ -197,6 +180,23 @@ export const ProductForm = ({
             </div>
           ))}
         </div>}
+        <div>
+          <label htmlFor="description">Description</label>
+          <textarea
+            id="description"
+            aria-invalid={Boolean(errors.description)}
+            aria-describedby={
+              errors.description ? "description-error" : undefined
+            }
+            {...register("description")}
+          />
+          {errors.description && (
+            <p id="description-error" role="alert">
+              {errors.description.message}
+            </p>
+          )}
+        </div>
+
         </fieldset>
         {mediaPanel}
         </div>

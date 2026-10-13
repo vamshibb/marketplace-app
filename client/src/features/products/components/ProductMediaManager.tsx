@@ -48,7 +48,7 @@ export const ProductMediaManager = ({ media, mutation, disabled }: Props) => {
     <div className="flex items-center justify-between gap-3">
       <h2 className="text-lg font-semibold text-slate-900">Photos &amp; video</h2>
       <button type="button" aria-label="Refresh media" title="Refresh media" disabled={locked || dragging}
-        onClick={() => mutation.run({ type: "refresh" }, () => setDraftOrder(null))}
+        onClick={() => mutation.run({ type: "refresh" }, () => { setDraftOrder(null); setFileError(""); })}
         className="rounded p-1 text-slate-500 hover:text-blue-600 disabled:opacity-50">
         <RefreshCw className="size-4" aria-hidden="true" />
       </button>
@@ -79,14 +79,14 @@ export const ProductMediaManager = ({ media, mutation, disabled }: Props) => {
           onCover={() => mutation.run({ type: "reorder", mediaIds: [item.id, ...ordered.filter(other => other.id !== item.id).map(other => other.id)] }, () => setDraftOrder(null))}
           onReplace={() => {
             if (media.length + files.length >= 10) {
-              setFileError("Replacement needs a free slot to keep the original safe. A full 10-item listing cannot be replaced atomically with the current API.");
+              setFileError("Replacement needs a free slot to keep the original safe. Remove a different item or an unuploaded selection first.");
               return;
             }
             replacementTarget.current = item.id;
             replacementInput.current?.click();
           }}
           onRemove={() => {
-            if (window.confirm("Remove this media from the listing?")) mutation.run({ type: "remove", mediaId: item.id });
+            if (window.confirm("Remove this media from the listing?")) mutation.run({ type: "remove", mediaId: item.id }, () => setFileError(""));
           }} />)}
         {visibleFiles.map((file, index) => <li key={index} className={mediaTileClass}>
           <div className="absolute inset-0 overflow-hidden rounded-lg"><LocalMediaPreview file={file} /></div>
@@ -124,7 +124,7 @@ export const ProductMediaManager = ({ media, mutation, disabled }: Props) => {
     </div>}
     {mutation.uploading && <MediaUploadProgress percent={mutation.uploadProgress} />}
     {mutation.isPending && !mutation.uploading && <p role="status" className="text-sm text-slate-500">{mutation.action === "refresh" ? "Refreshing media..." : "Saving media..."}</p>}
-    {mutation.isSuccess && !mutation.isPending && <p role="status" className="text-xs text-slate-500">Media updated.</p>}
-    {(fileError || mutation.errorMessage) && <p role="alert" className="text-sm text-red-600">{fileError || mutation.errorMessage}</p>}
+    {mutation.isSuccess && !mutation.isPending && <p role="status" className="text-xs text-slate-500">{mutation.action === "refresh" ? "Media refreshed." : "Media updated."}</p>}
+    {(fileError || mutation.errorMessage) && <p role="alert" className="text-sm text-red-600">{mutation.errorMessage || fileError}</p>}
   </section>;
 };
