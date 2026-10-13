@@ -91,11 +91,12 @@ export const deleteProduct = async (id: string): Promise<void> => {
   await api.delete(`/products/${id}`);
 };
 
-export const uploadProductMedia = async (id: string, files: File[]): Promise<ProductMedia[]> => {
+export const uploadProductMedia = async (id: string, files: File[], onProgress?: (percent: number | null) => void): Promise<ProductMedia[]> => {
   const body = new FormData();
   files.forEach((file) => body.append("media", file));
   const response = await api.post<ApiResponse<ProductMedia[]>>(`/products/${id}/media`, body, {
     headers: { "Content-Type": undefined },
+    onUploadProgress: event => onProgress?.(event.total ? Math.min(100, Math.round(event.loaded / event.total * 100)) : null),
   });
   return response.data.data;
 };

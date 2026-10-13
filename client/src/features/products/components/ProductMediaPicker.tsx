@@ -1,3 +1,4 @@
+import { MediaUploadProgress } from "./MediaUploadProgress";
 import { MediaGrid, mediaTileClass } from "./MediaGrid";
 import { LocalMediaPreview } from "./LocalMediaPreview";
 import { mediaAccept, validateMediaFiles } from "../utils/mediaFiles";
@@ -8,9 +9,11 @@ interface Props {
   files: File[];
   onChange: (files: File[]) => void;
   disabled: boolean;
+  uploading?: boolean;
+  uploadProgress?: number | null;
 }
 
-export const ProductMediaPicker = ({ files, onChange, disabled }: Props) => {
+export const ProductMediaPicker = ({ files, onChange, disabled, uploading, uploadProgress = null }: Props) => {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const addFiles = (incoming: File[]) => {
@@ -48,6 +51,7 @@ export const ProductMediaPicker = ({ files, onChange, disabled }: Props) => {
         <p>JPEG, PNG, WebP up to 10 MB. MP4, MOV, WebM up to 100 MB.</p>
         <p>The first image becomes the cover photo. Select a slot or drop files to add media.</p>
       </div>
+      {uploading && <MediaUploadProgress percent={uploadProgress} />}
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     </section>
   );

@@ -1,6 +1,6 @@
 import { mediaTileClass } from "./MediaGrid";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { GripVertical, X } from "lucide-react";
+import { GripVertical, X, Star, Replace } from "lucide-react";
 import type { ReactElement } from "react";
 import type { ProductMedia } from "../types";
 
@@ -11,9 +11,11 @@ interface SortableProductMediaProps {
   disabled: boolean;
   removingDisabled: boolean;
   onRemove: () => void;
+  onCover: () => void;
+  onReplace: () => void;
 }
 
-export const SortableProductMedia = ({ item, index, cover, disabled, removingDisabled, onRemove }: SortableProductMediaProps): ReactElement => {
+export const SortableProductMedia = ({ item, index, cover, disabled, removingDisabled, onRemove, onCover, onReplace }: SortableProductMediaProps): ReactElement => {
   const { ref, handleRef, isDragging } = useSortable({ id: item.id, index, disabled });
   const label = `${item.mediaType === "IMAGE" ? "Image" : "Video"} ${index + 1}`;
   const controlClass = "absolute flex size-7 items-center justify-center rounded-full bg-white/95 text-slate-600 shadow-sm focus-visible:outline-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-40";
@@ -28,6 +30,14 @@ export const SortableProductMedia = ({ item, index, cover, disabled, removingDis
       aria-label={`Remove ${label.toLowerCase()}`} disabled={removingDisabled} onClick={onRemove}>
       <X className="size-4" aria-hidden="true" />
     </button>
+    <button type="button" className={`${controlClass} top-1 left-1`} disabled={removingDisabled}
+      aria-label={`Replace ${label.toLowerCase()}`} title="Replace media" onClick={onReplace}>
+      <Replace className="size-4" aria-hidden="true" />
+    </button>
+    {item.mediaType === "IMAGE" && !cover && <button type="button" className={`${controlClass} bottom-1 left-1`}
+      disabled={removingDisabled} aria-label={`Set ${label.toLowerCase()} as cover`} title="Set as cover" onClick={onCover}>
+      <Star className="size-4" aria-hidden="true" />
+    </button>}
     <button ref={handleRef} type="button" className={`${controlClass} right-1 bottom-1 touch-none cursor-grab hover:text-blue-600 active:cursor-grabbing`}
       aria-label={`Reorder ${label.toLowerCase()}`} disabled={disabled}>
       <GripVertical className="size-4" aria-hidden="true" />

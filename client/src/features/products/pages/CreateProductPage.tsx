@@ -42,7 +42,7 @@ export const CreateProductPage = () => {
         pendingLabel="Publishing..."
         errorMessage={errorMessage}
         onCancel={() => navigate("/products")}
-        mediaPanel={<ProductMediaPicker files={files} onChange={setFiles} disabled={publish.isPending} />}
+        mediaPanel={<ProductMediaPicker files={files} onChange={setFiles} disabled={publish.isPending} uploading={publish.uploading} uploadProgress={publish.uploadProgress} />}
       />
     </main>
   );

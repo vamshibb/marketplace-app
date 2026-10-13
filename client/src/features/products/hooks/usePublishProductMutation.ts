@@ -6,6 +6,8 @@ import type { ProductFormValues } from "../schemas/productSchema";
 import { useCreateProductMutation } from "./useCreateProductMutation";
 
 export const usePublishProductMutation = () => {
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
   const createProduct = useCreateProductMutation();
   const queryClient = useQueryClient();
   const createdId = useRef<string | null>(null);
@@ -46,12 +48,16 @@ export const usePublishProductMutation = () => {
       if (files.length) {
         setCanRetryUpload(false);
         try {
-          await uploadProductMedia(createdId.current, files);
+          setUploadProgress(null);
+          setUploading(true);
+          await uploadProductMedia(createdId.current, files, setUploadProgress);
         } catch (uploadError) {
           unverifiedUploadCount.current = files.length;
           if (!(await checkUpload(createdId.current, files.length))) {
             throw uploadError;
           }
+        } finally {
+          setUploading(false);
         }
       }
       return createdId.current;
@@ -60,5 +66,5 @@ export const usePublishProductMutation = () => {
       void queryClient.invalidateQueries({ queryKey: productsQueryKeys.all() });
     },
   });
-  return { ...mutation, hasCreatedProduct, canRetryUpload };
+  return { ...mutation, hasCreatedProduct, canRetryUpload, uploadProgress, uploading };
 };

@@ -31,6 +31,7 @@ export const setup = (userId = owner.id, listing = product) => {
   const client = createTestQueryClient();
   client.setQueryData(authQueryKeys.currentUser(), { ...owner, id: userId });
   const get = vi.spyOn(api, "get").mockImplementation(async url => {
+    if (url === "/products/camera/media") return { data: { data: listing.media } };
     if (url === "/products/camera") return { data: { data: listing } };
     if (url === "/categories") return { data: { data: [product.category, { id: "tools", name: "Tools", slug: "tools" }] } };
     throw new Error(`Unexpected GET ${url}`);
