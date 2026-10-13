@@ -5,3 +5,6 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
 });
+
+// The sortable sensor observes tile dimensions in browsers. jsdom has no layout observer.
+globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };

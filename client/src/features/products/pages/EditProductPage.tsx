@@ -1,3 +1,5 @@
+import { ProductMediaManager } from "../components/ProductMediaManager";
+import { useProductMediaMutation } from "../hooks/useProductMediaMutation";
 import { isAxiosError } from "axios";
 import type { ReactElement } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -29,9 +31,10 @@ const updateErrorMessage = (error: unknown): string | undefined => {
 const EditProductEditor = ({ product }: { product: ProductDetail }): ReactElement => {
   const navigate = useNavigate();
   const update = useUpdateProductMutation();
-  const forbidden = isForbidden(update.error);
+  const media = useProductMediaMutation(product.id, update.isPending || isForbidden(update.error));
+  const forbidden = isForbidden(update.error) || media.forbidden;
   const onSubmit = (values: ProductFormValues): void => {
-    if (update.isPending || forbidden) return;
+    if (update.isPending || media.isPending || forbidden) return;
     update.mutate({ id: product.id, request: values }, {
       onSuccess: () => navigate(`/products/${product.id}`),
     });
@@ -47,7 +50,8 @@ const EditProductEditor = ({ product }: { product: ProductDetail }): ReactElemen
     onSubmit={onSubmit}
     isPending={update.isPending}
     detailsDisabled={forbidden}
-    submitDisabled={forbidden}
+    submitDisabled={forbidden || media.isPending}
+    mediaPanel={<ProductMediaManager media={product.media} mutation={media} disabled={update.isPending || forbidden} />}
     submitLabel="Save changes"
     pendingLabel="Saving..."
     errorMessage={updateErrorMessage(update.error)}
@@ -76,7 +80,7 @@ export const EditProductPage = (): ReactElement => {
   else if (product.data.sellerId !== user.data.id) content = <p role="alert">You can only edit listings you own.</p>;
   else content = <EditProductEditor key={`${user.data.id}:${product.data.id}`} product={product.data} />;
 
-  return <main className="max-w-3xl space-y-5">
+  return <main className="space-y-5">
     <Link to="/my-products" className="inline-flex text-sm font-medium text-blue-600 hover:text-blue-800">&larr; Back to My Products</Link>
     <div>
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">Edit listing</h1>

@@ -99,3 +99,16 @@ export const uploadProductMedia = async (id: string, files: File[]): Promise<Pro
   });
   return response.data.data;
 };
+
+export const getProductMedia = async (id: string): Promise<ProductMedia[]> => {
+  const response = await api.get<ApiResponse<ProductMedia[]>>(`/products/${encodeURIComponent(id)}/media`);
+  return response.data.data;
+};
+
+export const deleteProductMedia = async (id: string, mediaId: string): Promise<void> => {
+  await api.delete(`/products/${encodeURIComponent(id)}/media/${encodeURIComponent(mediaId)}`);
+};
+
+export const reorderProductMedia = async (id: string, mediaIds: string[]): Promise<void> => {
+  await api.patch(`/products/${encodeURIComponent(id)}/media/order`, { mediaIds });
+};

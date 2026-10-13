@@ -73,12 +73,12 @@ export const ProductForm = ({
         </p>
       )}
 
-      <form className="space-y-4" aria-busy={isPending || undefined} noValidate onSubmit={handleSubmit(values => onSubmit({
+      <form className="space-y-4 pb-24 [&_input]:scroll-mb-24 [&_textarea]:scroll-mb-24 [&_select]:scroll-mb-24" aria-busy={isPending || undefined} noValidate onSubmit={handleSubmit(values => onSubmit({
         ...values,
         minRentalDays: values.listingType === "SALE" ? null : values.minRentalDays ?? null,
         maxRentalDays: values.listingType === "SALE" ? null : values.maxRentalDays ?? null,
       }))}>
-        <div className={mediaPanel ? "grid items-stretch gap-5 lg:grid-cols-2" : undefined}>
+        <div className={mediaPanel ? "grid items-start gap-5 lg:grid-cols-2 lg:items-stretch" : undefined}>
         <fieldset disabled={isPending || detailsDisabled} className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_label]:mb-1.5 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-300 [&_input]:px-3 [&_input]:py-2.5 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-300 [&_select]:px-3 [&_select]:py-2.5 [&_textarea]:min-h-36 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:px-3 [&_textarea]:py-2.5 [&_p]:text-sm [&_p]:text-red-600">
         <h2 className="text-lg font-semibold text-slate-900">Listing details</h2>
         <div role="group" aria-label="Listing type" className="flex gap-1 self-start rounded-lg border border-slate-200 bg-slate-50 p-1">
@@ -200,7 +200,7 @@ export const ProductForm = ({
         </fieldset>
         {mediaPanel}
         </div>
-        <div className="flex justify-end gap-3">
+        <div className="sticky bottom-0 z-20 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgb(15_23_42/0.04)]">
         {onCancel && <Button variant="secondary" disabled={isPending} onClick={onCancel}>Cancel</Button>}
         <Button type="submit" disabled={isPending || submitDisabled} aria-busy={isPending || undefined}>
           {isPending ? pendingLabel : submitLabel}
