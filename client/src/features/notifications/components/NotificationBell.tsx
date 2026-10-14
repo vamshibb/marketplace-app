@@ -3,6 +3,7 @@ import { Bell } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotificationsQuery, useUnreadCountQuery } from "../hooks/useNotificationQueries";
+import { useNotificationRealtime } from "../hooks/useNotificationRealtime";
 import { useMarkAllNotificationsReadMutation, useMarkNotificationReadMutation } from "../hooks/useNotificationMutations";
 import type { Notification } from "../types";
 import { useOrderNavigation } from "../../orders";
@@ -15,6 +16,7 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
   const navigate = useNavigate();
   const count = useUnreadCountQuery(userId);
   const list = useNotificationsQuery(userId, open);
+  useNotificationRealtime(userId);
   const markRead = useMarkNotificationReadMutation(userId);
   const markAll = useMarkAllNotificationsReadMutation(userId);
   const openOrder = useOrderNavigation(userId);
@@ -101,23 +103,23 @@ export const NotificationBell = ({ userId }: { userId: string }) => {
           <div className="max-h-[min(65vh,28rem)] overflow-y-auto">
             {list.isPending ? <p role="status" className="p-4 text-sm text-slate-500">Loading notifications...</p>
               : list.isError ? <div role="alert" className="p-4 text-sm text-red-600">Unable to load notifications. <button type="button" onClick={() => void list.refetch()} className="underline">Retry</button></div>
-              : list.data.length === 0 ? <p className="p-4 text-sm text-slate-500">No notifications yet.</p>
-              : <ul className="divide-y divide-slate-100">
-                {list.data.map((notification) => (
-                  <li key={notification.id}>
-                    <button type="button" disabled={pending} onClick={() => void select(notification)}
-                      className={`block w-full space-y-1 p-3 text-left hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-600 disabled:opacity-60 ${notification.isRead ? "bg-white" : "bg-blue-50/70"}`}>
-                      <span className="flex items-center gap-2">
-                        {!notification.isRead && <span className="size-2 shrink-0 rounded-full bg-blue-600"><span className="sr-only">Unread</span></span>}
-                        <span className="text-sm font-semibold text-slate-900">{notification.title}</span>
-                      </span>
-                      {notification.sender && <span className="block text-xs font-medium text-slate-600">{notification.sender.displayName ?? notification.sender.email}</span>}
-                      {notification.body && <span className="block text-sm wrap-anywhere text-slate-600">{notification.body}</span>}
-                      <time dateTime={notification.createdAt} className="block text-xs text-slate-400">{new Date(notification.createdAt).toLocaleString()}</time>
-                    </button>
-                  </li>
-                ))}
-              </ul>}
+                : list.data.length === 0 ? <p className="p-4 text-sm text-slate-500">No notifications yet.</p>
+                  : <ul className="divide-y divide-slate-100">
+                    {list.data.map((notification) => (
+                      <li key={notification.id}>
+                        <button type="button" disabled={pending} onClick={() => void select(notification)}
+                          className={`block w-full space-y-1 p-3 text-left hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-600 disabled:opacity-60 ${notification.isRead ? "bg-white" : "bg-blue-50/70"}`}>
+                          <span className="flex items-center gap-2">
+                            {!notification.isRead && <span className="size-2 shrink-0 rounded-full bg-blue-600"><span className="sr-only">Unread</span></span>}
+                            <span className="text-sm font-semibold text-slate-900">{notification.title}</span>
+                          </span>
+                          {notification.sender && <span className="block text-xs font-medium text-slate-600">{notification.sender.displayName ?? notification.sender.email}</span>}
+                          {notification.body && <span className="block text-sm wrap-anywhere text-slate-600">{notification.body}</span>}
+                          <time dateTime={notification.createdAt} className="block text-xs text-slate-400">{new Date(notification.createdAt).toLocaleString()}</time>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>}
           </div>
         </section>
       )}
