@@ -9,7 +9,7 @@ From `server`, install dependencies and generate Prisma's client (`npm run prism
 ```powershell
 $env:TEST_DATABASE_URL = 'postgresql://USER:PASSWORD@HOST:5432/marketplace_test'
 
-node --test tests/display-name.test.cjs tests/availability-stream.test.cjs tests/transaction-conflict.test.cjs tests/marketplace-invariants.test.cjs
+node --test tests/display-name.test.cjs tests/availability-stream.test.cjs tests/transaction-conflict.test.cjs tests/marketplace-invariants.test.cjs tests/realtime-stream.test.cjs tests/realtime-auth.test.cjs tests/realtime-domain.test.cjs
 
 npm run build
 ```
@@ -18,6 +18,9 @@ The command above runs all retained backend regression tests. Integration tests 
 
 - `display-name.test.cjs`: existing isolated auth/DTO coverage.
 - `availability-stream.test.cjs`: SSE headers, event isolation, heartbeat and disconnect/error/backpressure cleanup. Uses fake responses and a controlled clock, with no database or real-time waits.
+- `realtime-stream.test.cjs`: user isolation, multiple connections, private SSE framing, heartbeat and transport/backpressure cleanup. Reuses `helpers/sse-response.cjs`.
+- `realtime-auth.test.cjs`: real Express middleware/route and authenticated fetch streaming; rejects missing/invalid/expired/query-only tokens and ignores caller-supplied user IDs. Uses a local ephemeral HTTP port and a test-only JWT secret.
+- `realtime-domain.test.cjs`: real services/DTOs/publisher with isolated repository stubs, covering post-commit message/notification/read events, authorization, monotonic cursor payloads, and failed publishing without failed domain actions. Does not claim database transaction/concurrency coverage.
 - `transaction-conflict.test.cjs`: query-time and adapter commit-time serialization errors both retry and end as 409 without publishing; unrelated database errors remain unchanged.
 - `marketplace-invariants.test.cjs`: real PostgreSQL service/repository transactions covering rental capacity, owner blocks, protected listing edits, SALE inventory, and service-triggered availability events.
 - `helpers/database.cjs`: unique fixture users/products, exact-ID cleanup, and a barrier that pauses the first reads of two real transactions so their snapshots overlap. Retries and database writes remain real. Cases in the integration file must remain sequential because the barrier temporarily wraps that process's Prisma transaction entry point.
@@ -27,5 +30,5 @@ Each integration run creates unique fixtures and notifications only for its test
 For just the database-free tests:
 
 ```powershell
-node --test tests/display-name.test.cjs tests/availability-stream.test.cjs tests/transaction-conflict.test.cjs
+node --test tests/display-name.test.cjs tests/availability-stream.test.cjs tests/transaction-conflict.test.cjs tests/realtime-stream.test.cjs tests/realtime-auth.test.cjs tests/realtime-domain.test.cjs
 ```

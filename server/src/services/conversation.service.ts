@@ -8,6 +8,7 @@ import {
 } from "../dto/conversation.dto";
 import * as conversationRepository from "../repositories/conversation.repository";
 import * as productRepository from "../repositories/product.repository";
+import { publishUserEvent } from "../utils/userRealtimePublisher";
 
 const ensureConversationExists = async (
   conversationId: string
@@ -71,6 +72,12 @@ export const createConversation = async (
   );
 
   // Notify only after the conversation and message have committed.
+  for (const participant of conversation.participants) {
+    publishUserEvent(participant.userId, {
+      type: "message_created",
+      data: { conversationId: conversation.id, messageId: message.id, senderId: buyerId },
+    });
+  }
   const sender = conversation.participants.find((participant) => participant.userId === buyerId)!.user;
   if (conversation.product) {
     await notificationService.notifyMessage({
@@ -122,5 +129,17 @@ export const markConversationRead = async (conversationId: string, userId: strin
   }
   const result = await conversationReadRepository.markConversationRead(conversationId, userId, messageId);
   if (!result) throw new AppError("You are not a participant in this conversation.", 403);
+  for (const participant of conversation.participants) {
+    publishUserEvent(participant.userId, {
+      type: "conversation_read_changed",
+      data: { conversationId, userId, lastReadMessageId: result.lastReadMessageId },
+    });
+  }
+  if (result.updatedNotifications > 0) {
+    publishUserEvent(userId, {
+      type: "notification_read_changed",
+      data: { scope: "conversation", conversationId },
+    });
+  }
   return result;
 };

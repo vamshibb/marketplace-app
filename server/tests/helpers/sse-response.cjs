@@ -15,9 +15,10 @@ class StreamResponse extends EventEmitter {
   flushHeaders() { this.flushed = true; }
   write(frame) { this.frames.push(frame); return this.acceptWrites; }
   destroy() { this.destroyed = true; this.emit('close'); }
-  changes() {
-    return this.frames.filter(frame => frame.startsWith('event: availability_changed\n'))
+  events(name) {
+    return this.frames.filter(frame => frame.startsWith(`event: ${name}\n`))
       .map(frame => JSON.parse(frame.split('data: ')[1].trim()));
   }
+  changes() { return this.events('availability_changed'); }
 }
 module.exports = { StreamResponse };

@@ -2,6 +2,7 @@ import { NotificationType } from "../generated/prisma";
 import { toNotificationDTO } from "../dto/notification.dto";
 import { AppError } from "../errors/AppError";
 import * as notificationRepository from "../repositories/notification.repository";
+import { publishUserEvent } from "../utils/userRealtimePublisher";
 
 const MESSAGE_NOTIFICATION_TITLE = "New Message";
 const buildMessageBody = (
@@ -154,7 +155,10 @@ const safeCreateNotification = async (
   data: NotificationBuilderResult
 ): Promise<void> => {
   try {
-    await notificationRepository.createNotification(data);
+    const notification = await notificationRepository.createNotification(data);
+    publishUserEvent(data.recipientId, {
+      type: "notification_created", data: { notificationId: notification.id },
+    });
   } catch (error) {
     console.error("Failed to create notification", error);
   }
@@ -224,7 +228,10 @@ export const notifyMessage = async (
   const notification = buildMessageNotification(payload);
 
   try {
-    await notificationRepository.createMessageNotification(notification, payload.conversationId, payload.messageId);
+    const created = await notificationRepository.createMessageNotification(notification, payload.conversationId, payload.messageId);
+    if (created) publishUserEvent(payload.recipientId, {
+      type: "notification_created", data: { notificationId: created.id },
+    });
   } catch (error) {
     console.error("Failed to create notification", error);
   }
@@ -311,15 +318,22 @@ export const markAsRead = async (
       notificationId
     );
 
+  if (!notification.isRead) publishUserEvent(userId, {
+    type: "notification_read_changed", data: { scope: "notification", notificationId },
+  });
   return toNotificationDTO(updatedNotification);
 };
 
-export const markAllAsRead = (
+export const markAllAsRead = async (
   userId: string
 ) => {
-  return notificationRepository.markAllNotificationsAsRead(
+  const result = await notificationRepository.markAllNotificationsAsRead(
     userId
   );
+  if (result.count > 0) publishUserEvent(userId, {
+    type: "notification_read_changed", data: { scope: "all" },
+  });
+  return result;
 };
 
 export const notifyOrderCompleted = async (payload: OrderNotificationPayload): Promise<void> => {

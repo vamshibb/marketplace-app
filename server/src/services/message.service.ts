@@ -3,6 +3,7 @@ import { toMessageDTO } from "../dto/message.dto";
 import * as conversationRepository from "../repositories/conversation.repository";
 import * as messageRepository from "../repositories/message.repository";
 import * as notificationService from "./notification.service";
+import { publishUserEvent } from "../utils/userRealtimePublisher";
 
 const ensureConversationExists = async (
   conversationId: string
@@ -63,6 +64,13 @@ export const sendMessage = async (
       senderId,
       content: trimmedContent,
     });
+
+  for (const participant of conversation.participants) {
+    publishUserEvent(participant.userId, {
+      type: "message_created",
+      data: { conversationId, messageId: message.id, senderId },
+    });
+  }
 
   const sender = conversation.participants.find(
     (participant) => participant.userId === senderId

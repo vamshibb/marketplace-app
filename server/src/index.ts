@@ -25,6 +25,7 @@ import orderRoutes from "./routes/order.routes";
 
 import userReviewRoutes from "./routes/userReview.routes";
 import userRoutes from "./routes/user.routes";
+import realtimeRoutes from "./routes/realtime.routes";
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use("/api/products", productMediaRoutes);
 app.use("/api", conversationRoutes);
 app.use("/api", messageRoutes);
 app.use("/api", notificationRoutes);
+app.use("/api", realtimeRoutes);
 app.use("/api", orderRoutes);
 app.use(errorMiddleware);
 
