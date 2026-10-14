@@ -109,6 +109,7 @@ export const createAuthenticatedRealtimeClient = ({
   let isStarted = false;
   let reconnectAttempt = 0;
   let disposed = false;
+  let generation = 0;
 
   const clearReconnectTimer = () => {
     if (reconnectTimer) {
@@ -128,12 +129,14 @@ export const createAuthenticatedRealtimeClient = ({
     reconnectAttempt += 1;
     clearReconnectTimer();
     reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
       void connect();
     }, delay);
   };
 
   const abort = (reason: RealtimeAbortReason = "disconnect") => {
     abortReason = reason;
+    generation += 1;
     isStarted = false;
     clearReconnectTimer();
     resetConnectionBuffer();
@@ -153,6 +156,7 @@ export const createAuthenticatedRealtimeClient = ({
     const token = getToken();
     if (!token) return;
 
+    const currentGeneration = generation;
     resetConnectionBuffer();
     const currentConnection = new AbortController();
     connection = currentConnection;
@@ -167,6 +171,24 @@ export const createAuthenticatedRealtimeClient = ({
         cache: "no-store",
       });
 
+      if (currentGeneration !== generation) {
+        currentConnection.abort();
+        return;
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        abortReason = "logout";
+        isStarted = false;
+        clearReconnectTimer();
+        resetConnectionBuffer();
+        if (connection === currentConnection) {
+          connection = null;
+        }
+        currentConnection.abort();
+        onError?.(new Error(`Realtime stream rejected credentials with status ${response.status}`));
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`Realtime stream failed with status ${response.status}`);
       }
@@ -178,7 +200,7 @@ export const createAuthenticatedRealtimeClient = ({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
-      while (!disposed && !abortReason) {
+      while (!disposed && !abortReason && currentGeneration === generation) {
         const result = await reader.read();
         if (result.done) {
           throw new Error("Realtime stream closed unexpectedly");
@@ -198,6 +220,11 @@ export const createAuthenticatedRealtimeClient = ({
         }
       }
     } catch (error) {
+      if (currentGeneration !== generation) {
+        buffer = "";
+        return;
+      }
+
       if (currentConnection.signal.aborted && abortReason) {
         buffer = "";
         return;
@@ -220,6 +247,7 @@ export const createAuthenticatedRealtimeClient = ({
     abortReason = null;
     isStarted = true;
     reconnectAttempt = 0;
+    generation += 1;
     resetConnectionBuffer();
     void connect();
   };

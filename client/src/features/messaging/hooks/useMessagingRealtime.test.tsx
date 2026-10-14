@@ -295,6 +295,299 @@ describe("authenticated realtime SSE", () => {
     connection.dispose();
   });
 
+  it("uses the latest token on reconnect after an unexpected close", async () => {
+    vi.useFakeTimers();
+    let currentToken = "token-a";
+    let fetchCount = 0;
+
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCount += 1;
+      const headers = init?.headers as Record<string, string> | undefined;
+
+      if (fetchCount === 1) {
+        return {
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.close();
+            },
+          }),
+        } as Response;
+      }
+
+      expect(headers).toMatchObject({ Authorization: `Bearer ${currentToken}` });
+      return {
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode("event: connected\ndata: {\"version\":1}\n\n"));
+          },
+        }),
+      } as Response;
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const connection = createAuthenticatedRealtimeClient({
+      url: "http://localhost:3000/api/realtime/stream",
+      getToken: () => currentToken,
+      onEvent: vi.fn(),
+      onConnected: vi.fn(),
+      backoffMs: 50,
+      maxBackoffMs: 50,
+    });
+
+    connection.start();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    currentToken = "token-b";
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      headers: expect.objectContaining({ Authorization: "Bearer token-b" }),
+    });
+    connection.dispose();
+  });
+
+  it("reconnects after 5xx/network failures and stops on 401/403 without looped retries", async () => {
+    vi.useFakeTimers();
+    let fetchCount = 0;
+    const fetchMock = vi.fn(async () => {
+      fetchCount += 1;
+      if (fetchCount === 1) {
+        return { ok: false, status: 500, statusText: "Server Error" } as Response;
+      }
+      if (fetchCount === 2) {
+        return { ok: false, status: 401, statusText: "Unauthorized" } as Response;
+      }
+      return {
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode("event: connected\ndata: {\"version\":1}\n\n"));
+          },
+        }),
+      } as Response;
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const connection = createAuthenticatedRealtimeClient({
+      url: "http://localhost:3000/api/realtime/stream",
+      getToken: () => "token-a",
+      onEvent: vi.fn(),
+      onConnected: vi.fn(),
+      backoffMs: 25,
+      maxBackoffMs: 25,
+    });
+
+    connection.start();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    connection.dispose();
+  });
+
+  it("resets reconnect backoff after a successful connected event", async () => {
+    vi.useFakeTimers();
+    let fetchCount = 0;
+
+    const fetchMock = vi.fn(async () => {
+      fetchCount += 1;
+      if (fetchCount === 1) {
+        return {
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.close();
+            },
+          }),
+        } as Response;
+      }
+      if (fetchCount === 2) {
+        return {
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode("event: connected\ndata: {\"version\":1}\n\n"));
+              queueMicrotask(() => controller.close());
+            },
+          }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            controller.close();
+          },
+        }),
+      } as Response;
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const connection = createAuthenticatedRealtimeClient({
+      url: "http://localhost:3000/api/realtime/stream",
+      getToken: () => "token-a",
+      onEvent: vi.fn(),
+      onConnected: vi.fn(),
+      backoffMs: 50,
+      maxBackoffMs: 100,
+    });
+
+    connection.start();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(49);
+    });
+    expect(fetchCount).toBe(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchCount).toBe(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(49);
+    });
+    expect(fetchCount).toBe(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchCount).toBe(3);
+
+    connection.dispose();
+  });
+
+  it("ignores stale responses from the same client after replacement", async () => {
+    const onEvent = vi.fn();
+    const onError = vi.fn();
+    let resolveOldRequest: ((response: Response) => void) | undefined;
+    let newStreamController: ReadableStreamDefaultController<Uint8Array> | undefined;
+
+    const fetchMock = vi.fn(async () => {
+      if (fetchMock.mock.calls.length === 1) {
+        return await new Promise<Response>((resolve) => {
+          resolveOldRequest = resolve;
+        });
+      }
+
+      return {
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            newStreamController = controller;
+            queueMicrotask(() => {
+              controller.enqueue(encoder.encode("event: connected\ndata: {\"version\":2}\n\n"));
+            });
+          },
+        }),
+      } as Response;
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    const connection = createAuthenticatedRealtimeClient({
+      url: "http://localhost:3000/api/realtime/stream",
+      getToken: () => "token-a",
+      onEvent,
+      onConnected: vi.fn(),
+      onError,
+      backoffMs: 25,
+      maxBackoffMs: 25,
+    });
+
+    connection.start();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    connection.abort("replacement");
+    connection.start();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    resolveOldRequest?.({ ok: false, status: 401, statusText: "Unauthorized" } as Response);
+    await Promise.resolve();
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(newStreamController).toBeDefined();
+
+    newStreamController?.enqueue(encoder.encode("event: message_created\ndata: {\"conversationId\":\"c-new\"}\n\n"));
+    await waitFor(() => expect(onEvent).toHaveBeenCalledWith("connected", { version: 2 }));
+    await waitFor(() => expect(onEvent).toHaveBeenCalledWith("message_created", { conversationId: "c-new" }));
+
+    connection.dispose();
+  });
+
+  it("ignores malformed JSON and unknown events without dropping later valid events", async () => {
+    const listener = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode("event: malformed\ndata: {oops\n\n"));
+          controller.enqueue(encoder.encode("event: message_created\ndata: {\"conversationId\":\"c-1\",\"messageId\":\"m-1\"}\n\n"));
+        },
+      }),
+    }) as Response));
+
+    const unsubscribe = subscribeToRealtimeEvents(listener);
+    startSharedRealtime();
+
+    await waitFor(() => expect(listener).toHaveBeenCalledWith("message_created", { conversationId: "c-1", messageId: "m-1" }));
+    expect(listener).toHaveBeenCalledWith("malformed", "{oops");
+    unsubscribe();
+  });
+
+  it("stale old transports cannot dispatch after replacement", async () => {
+    const oldListener = vi.fn();
+    const newListener = vi.fn();
+    let firstController: ReadableStreamDefaultController<Uint8Array> | undefined;
+    let secondController: ReadableStreamDefaultController<Uint8Array> | undefined;
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      body: new ReadableStream({
+        start(controller) {
+          if (fetchMock.mock.calls.length === 1) {
+            firstController = controller;
+          } else {
+            secondController = controller;
+          }
+          queueMicrotask(() => {
+            controller.enqueue(encoder.encode("event: connected\ndata: {\"version\":1}\n\n"));
+          });
+        },
+      }),
+    }) as Response);
+
+    vi.stubGlobal("fetch", fetchMock);
+    const first = createAuthenticatedRealtimeClient({
+      url: "http://localhost:3000/api/realtime/stream",
+      getToken: () => "token-a",
+      onEvent: oldListener,
+      onConnected: oldListener,
+    });
+    const second = createAuthenticatedRealtimeClient({
+      url: "http://localhost:3000/api/realtime/stream",
+      getToken: () => "token-b",
+      onEvent: newListener,
+      onConnected: newListener,
+    });
+
+    first.start();
+    second.start();
+    first.abort("replacement");
+
+    firstController?.enqueue(encoder.encode("event: message_created\ndata: {\"conversationId\":\"c-old\"}\n\n"));
+    secondController?.enqueue(encoder.encode("event: message_created\ndata: {\"conversationId\":\"c-new\"}\n\n"));
+
+    await waitFor(() => expect(newListener).toHaveBeenCalledWith("message_created", { conversationId: "c-new" }));
+    expect(oldListener).not.toHaveBeenCalledWith("message_created", { conversationId: "c-old" });
+    second.dispose();
+  });
+
   it("keeps only one shared transport active and cleans up subscriber listeners", async () => {
     const listener = vi.fn();
     let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
