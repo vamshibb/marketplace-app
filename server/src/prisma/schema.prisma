@@ -35,6 +35,23 @@ enum OrderStatus {
   RETURN_PENDING
 }
 
+enum PaymentPurpose {
+  SALE
+  RENT
+  RENT_DEPOSIT
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
 model User {
   id                       String                    @id @default(cuid())
   email                    String                    @unique
@@ -255,9 +272,10 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  buyer   User    @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
-  seller  User    @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  buyer    User      @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller   User      @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  product  Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  payments Payment[]
 
   @@index([buyerId])
   @@index([sellerId])
@@ -266,6 +284,30 @@ model Order {
   @@index([buyerId, status])
   @@index([sellerId, status])
   @@index([createdAt(sort: Desc)])
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  orderId          String
+  purpose          PaymentPurpose
+  provider         String?
+  providerPaymentId String?
+  amount           Decimal       @db.Decimal(10, 2)
+  currency         String
+  status           PaymentStatus @default(PENDING)
+  idempotencyKey   String        @unique
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, purpose])
+  @@index([orderId])
+  @@index([status])
+  @@index([purpose])
+  @@index([currency])
+  @@index([provider])
 }
 
 model AvailabilityBlock {
