@@ -664,6 +664,51 @@ export const createPaymentRecord = async ({
 
 export const createPaymentForOrder = createPaymentRecord;
 
+const resolveMainPaymentPurposeForOrder = (transactionType: ListingType): PaymentPurpose => {
+    if (transactionType === ListingType.SALE) {
+        return PaymentPurpose.SALE;
+    }
+
+    if (transactionType === ListingType.RENT) {
+        return PaymentPurpose.RENT;
+    }
+
+    throw new AppError(`Unsupported order transaction type: ${transactionType}.`, 409);
+};
+
+export const settleCancelledOrderPayment = async (
+    orderId: string,
+    paymentProvider: PaymentProvider
+) => {
+    const order = await orderRepository.findOrderById(orderId);
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    const paymentPurpose = resolveMainPaymentPurposeForOrder(order.transactionType);
+    const payment = await paymentRepository.findPaymentByOrderAndPurpose(orderId, paymentPurpose);
+    if (!payment) {
+        throw new AppError(`Order ${orderId} does not have a ${paymentPurpose} payment record.`, 404);
+    }
+
+    if (payment.status === PaymentStatus.CANCELLED || payment.status === PaymentStatus.REFUNDED) {
+        return payment;
+    }
+
+    if (payment.status === PaymentStatus.AUTHORIZED) {
+        return cancelPayment(payment.id, paymentProvider);
+    }
+
+    if (payment.status === PaymentStatus.CAPTURED) {
+        return refundPayment(payment.id, paymentProvider);
+    }
+
+    throw new AppError(
+        `Settlement is not allowed for a ${paymentPurpose} payment in status ${payment.status}.`,
+        409
+    );
+};
+
 export const authorizeRentalDeposit = async (
     orderId: string,
     paymentProvider: PaymentProvider

@@ -94,6 +94,7 @@ const {
   authorizeRentalDeposit,
   releaseRentalDeposit,
   captureRentalDeposit,
+  settleCancelledOrderPayment,
 } = require('../src/services/payment.service.ts');
 
 const clearState = () => {
@@ -971,4 +972,108 @@ test('M4A payment record operations do not mutate existing order state', async (
   assert.equal(order.transactionType, ListingType.SALE);
   assert.equal(updated.orderId, 'sale-order');
   assert.equal(payment.orderId, 'sale-order');
+});
+
+test('cancelled-order settlement resolves the main payment and rejects ambiguous states', async () => {
+  clearState();
+
+  const provider = {
+    authorize: async () => ({ provider: 'mock-provider', providerPaymentId: 'settle-main-auth', status: PaymentStatus.AUTHORIZED }),
+    capture: async () => ({ provider: 'mock-provider', providerPaymentId: 'settle-main-auth', status: PaymentStatus.CAPTURED }),
+    cancel: async () => ({ provider: 'mock-provider', providerPaymentId: 'settle-main-auth', status: PaymentStatus.CANCELLED }),
+    refund: async () => ({ provider: 'mock-provider', providerPaymentId: 'settle-main-auth', status: PaymentStatus.REFUNDED }),
+    getStatus: async () => ({ provider: 'mock-provider', providerPaymentId: 'settle-main-auth', status: PaymentStatus.CAPTURED }),
+  };
+
+  const saleOrder = { id: 'sale-settlement-order', transactionType: ListingType.SALE };
+  orders.set('sale-settlement-order', saleOrder);
+  const salePayment = await createPaymentRecord({
+    orderId: 'sale-settlement-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '44.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-settlement-order-main',
+  });
+
+  const authorized = await authorizePayment(salePayment.id, provider);
+  const settledCancelled = await settleCancelledOrderPayment('sale-settlement-order', provider);
+  assert.equal(settledCancelled.id, authorized.id);
+  assert.equal(settledCancelled.status, PaymentStatus.CANCELLED);
+
+  const capturedOrder = { id: 'sale-settlement-captured-order', transactionType: ListingType.RENT };
+  orders.set('sale-settlement-captured-order', capturedOrder);
+  const rentPayment = await createPaymentRecord({
+    orderId: 'sale-settlement-captured-order',
+    purpose: PaymentPurpose.RENT,
+    amount: '88.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-settlement-captured-order-main',
+  });
+  const authorizedRent = await authorizePayment(rentPayment.id, provider);
+  const capturedRent = await capturePayment(authorizedRent.id, provider);
+  const settledRefunded = await settleCancelledOrderPayment('sale-settlement-captured-order', provider);
+  assert.equal(settledRefunded.id, capturedRent.id);
+  assert.equal(settledRefunded.status, PaymentStatus.REFUNDED);
+
+  const cancelledOrder = { id: 'sale-settlement-cancelled-order', transactionType: ListingType.SALE };
+  orders.set('sale-settlement-cancelled-order', cancelledOrder);
+  const cancelledPayment = await createPaymentRecord({
+    orderId: 'sale-settlement-cancelled-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '66.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-settlement-cancelled-order-main',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(cancelledPayment.id, PaymentStatus.CANCELLED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'cancelled-main-ref',
+  });
+  const settledAlreadyCancelled = await settleCancelledOrderPayment('sale-settlement-cancelled-order', provider);
+  assert.equal(settledAlreadyCancelled.id, cancelledPayment.id);
+  assert.equal(settledAlreadyCancelled.status, PaymentStatus.CANCELLED);
+
+  const refundedOrder = { id: 'sale-settlement-refunded-order', transactionType: ListingType.RENT };
+  orders.set('sale-settlement-refunded-order', refundedOrder);
+  const refundedPayment = await createPaymentRecord({
+    orderId: 'sale-settlement-refunded-order',
+    purpose: PaymentPurpose.RENT,
+    amount: '99.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-settlement-refunded-order-main',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(refundedPayment.id, PaymentStatus.REFUNDED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'refunded-main-ref',
+  });
+  const settledAlreadyRefunded = await settleCancelledOrderPayment('sale-settlement-refunded-order', provider);
+  assert.equal(settledAlreadyRefunded.id, refundedPayment.id);
+  assert.equal(settledAlreadyRefunded.status, PaymentStatus.REFUNDED);
+
+  const pendingOrder = { id: 'sale-settlement-pending-order', transactionType: ListingType.SALE };
+  orders.set('sale-settlement-pending-order', pendingOrder);
+  const pendingPayment = await createPaymentRecord({
+    orderId: 'sale-settlement-pending-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '77.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-settlement-pending-order-main',
+  });
+  await assert.rejects(
+    settleCancelledOrderPayment('sale-settlement-pending-order', provider),
+    (error) => error && error.statusCode === 409
+  );
+
+  await assert.rejects(
+    settleCancelledOrderPayment('sale-settlement-missing-order', provider),
+    (error) => error && error.statusCode === 404
+  );
+
+  const missingMainOrder = { id: 'sale-settlement-no-main', transactionType: ListingType.SALE };
+  orders.set('sale-settlement-no-main', missingMainOrder);
+  await assert.rejects(
+    settleCancelledOrderPayment('sale-settlement-no-main', provider),
+    (error) => error && error.statusCode === 404
+  );
+
+  assert.ok(pendingPayment.id);
 });
