@@ -52,6 +52,14 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentWebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
 model User {
   id                       String                    @id @default(cuid())
   email                    String                    @unique
@@ -300,14 +308,40 @@ model Payment {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order        Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  webhookEvents PaymentWebhookEvent[]
 
   @@unique([orderId, purpose])
+  @@unique([provider, providerPaymentId])
   @@index([orderId])
   @@index([status])
   @@index([purpose])
   @@index([currency])
   @@index([provider])
+}
+
+model PaymentWebhookEvent {
+  id               String                    @id @default(cuid())
+  provider         String
+  providerEventId  String
+  eventType        String
+  paymentId        String?
+  providerPaymentId String?
+  status           PaymentWebhookEventStatus @default(RECEIVED)
+  occurredAt       DateTime?
+  receivedAt       DateTime                  @default(now())
+  processedAt      DateTime?
+  reason           String?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, providerEventId])
+  @@index([provider])
+  @@index([paymentId])
+  @@index([providerPaymentId])
+  @@index([status])
 }
 
 model AvailabilityBlock {

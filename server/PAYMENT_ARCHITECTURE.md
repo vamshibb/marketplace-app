@@ -1,20 +1,20 @@
-# Payment Architecture (M4A)
+# Payment Architecture
 
-This is the internal payment foundation for the marketplace backend. It is intentionally narrow and does not gate existing order flows or move real money yet.
+The marketplace payment domain provides the backend foundation for checkout, payment provider integration, webhooks, deposits, refunds, and payouts.
 
-## Purpose model
+No real payment provider is configured yet. The backend must never treat frontend-reported success as authoritative payment state.
 
-Each payment is associated with a specific buyer-side financial purpose for an order:
+## Payment model
+
+A Payment belongs to an Order and has one purpose:
 
 - SALE
 - RENT
 - RENT_DEPOSIT
 
-A single order may hold multiple payment records when needed, such as a RENT order that includes both RENT and RENT_DEPOSIT. The business uniqueness rule is `orderId + purpose`.
+An Order can have more than one payment purpose when required, such as RENT and RENT_DEPOSIT.
 
-## Status model
-
-Payment status is lifecycle-oriented and deliberately separate from order status:
+Payment lifecycle states include:
 
 - PENDING
 - PROCESSING
@@ -25,28 +25,72 @@ Payment status is lifecycle-oriented and deliberately separate from order status
 - PARTIALLY_REFUNDED
 - REFUNDED
 
-Status transitions are validated in the service layer and rejected with HTTP 409 when they are illegal. Terminal states for M4A are FAILED, CANCELLED, and REFUNDED.
+Payment creation is protected by order/purpose uniqueness and idempotency.
+
+Provider transactions are uniquely identified by:
+
+provider + providerPaymentId
 
 ## Provider boundary
 
-The payment provider interface is intentionally provider-agnostic and minimal. It covers future authorization, capture, cancel/void, refund, and status lookup operations. No production provider is configured in M4A, and the default provider is intentionally unsupported so it throws instead of manufacturing fake success.
+Payment providers are accessed through the PaymentProvider abstraction.
 
-## Idempotency
+The backend currently has no real provider configured and does not include a production mock provider.
 
-Payments use a unique idempotency key, generated as `orderId:purpose` by default. Reuse of the same idempotency key for a conflicting financial operation is rejected. A duplicate order/purpose with the same immutable financial details is treated as an idempotent replay.
+Provider operations include authorization, capture, cancellation, refund, status lookup, and webhook verification.
 
-Payment creation idempotency and provider-operation idempotency are separate concerns. M4A keeps creation idempotency local to the payment record, while external provider operations can carry operation-specific keys such as `payment-key:authorize` or `payment-key:capture` when needed.
+## Checkout
 
-Explicit partial-refund amount and idempotency semantics are deferred to M4D. In M4A, `refundPayment()` is intentionally a full-refund operation only; `PARTIALLY_REFUNDED` remains in the status model for future reconciliation/webhook-driven workflows, but it is not accepted as the explicit result of this M4A refund method. This avoids pretending a single payment amount is partially refunded when there is no M4D partial-refund contract yet.
+Checkout financial values must come from persisted backend data.
 
-## Provider and reconciliation hardening
+The frontend cannot choose:
 
-M4A does not expose these provider operations publicly. Real provider/webhook idempotency, reconciliation, and concurrency hardening remain part of M4B, where durable external-side operation semantics can be modeled without affecting the current order flow.
+- payment amount
+- currency
+- payment purpose
+- payment status
+- provider payment identity
 
-## Refunds and payouts
+Current checkout authorization is intentionally blocked because the Order model does not yet persist enough financial information:
 
-Payment represents buyer-side order obligations. Refunds are modeled as lifecycle actions against a payment. Seller payouts and settlement flows are deferred to a separate M4D model because they involve accounting and payout lifecycle semantics that differ from buyer-side payment obligations.
+- SALE has no persisted currency.
+- RENT has no authoritative rental total/pricing contract and no persisted currency.
 
-## Scope
+The backend does not invent a default currency or rental total.
 
-M4A does not introduce public payment endpoints, does not integrate Stripe/PayPal or any real provider, and does not mutate order lifecycle behavior. It only defines the internal data and service boundary needed for later checkout, deposits, refunds, and payouts.
+RENT_DEPOSIT remains part of M4C.
+
+## Webhooks
+
+Provider adapters verify raw webhook requests and return a normalized verified event.
+
+Raw webhook bodies and signatures are not stored.
+
+Webhook events are durably deduplicated using:
+
+provider + providerEventId
+
+Webhook processing states are:
+
+RECEIVED -> PROCESSING -> PROCESSED | IGNORED | FAILED
+
+FAILED events may be retried.
+
+Only one worker may claim an event for processing. Stale or out-of-order webhook events must never regress Payment state.
+
+Retryable webhook failures return a retryable HTTP response instead of being acknowledged as successful.
+
+## Deferred work
+
+M4C:
+- rental deposits
+
+M4D:
+- refunds and settlement
+- seller payouts
+- partial refund accounting
+
+M4E:
+- frontend checkout and payment status UX
+
+The payment and order lifecycles remain separate until later milestones explicitly connect them.

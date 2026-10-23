@@ -1,8 +1,14 @@
-import { ListingType, PaymentPurpose, PaymentStatus, Prisma } from "../generated/prisma";
+import { ListingType, PaymentPurpose, PaymentStatus, PaymentWebhookEventStatus, Prisma } from "../generated/prisma";
 import { AppError } from "../errors/AppError";
 import * as orderRepository from "../repositories/order.repository";
 import * as paymentRepository from "../repositories/payment.repository";
-import type { PaymentProvider, PaymentProviderRequest, PaymentProviderResult } from "./paymentProvider";
+import type {
+    PaymentProvider,
+    PaymentProviderRequest,
+    PaymentProviderResult,
+    VerifiedPaymentWebhookEvent,
+} from "./paymentProvider";
+import { getConfiguredPaymentProvider } from "./paymentProvider";
 
 export type PaymentAmountInput = string | Prisma.Decimal;
 export type PaymentMetadataObject = Prisma.InputJsonObject;
@@ -160,6 +166,261 @@ const buildProviderRequest = (
     metadata: mergeMetadata(payment.metadata, operationOptions?.metadata),
 });
 
+const resolveWebhookPayment = async (
+    provider: string,
+    verifiedEvent: VerifiedPaymentWebhookEvent
+) => {
+    if (!verifiedEvent.providerPaymentId || !verifiedEvent.providerPaymentId.trim()) {
+        return null;
+    }
+
+    return paymentRepository.findPaymentByProviderReference(provider, verifiedEvent.providerPaymentId.trim());
+};
+
+export const processWebhookEvent = async (
+    providerName: string,
+    rawBody: Buffer | string,
+    headers: Record<string, string | string[] | undefined> = {},
+    paymentProvider: PaymentProvider = getConfiguredPaymentProvider()
+) => {
+    const selectedProviderName = providerName.trim();
+    if (!selectedProviderName) {
+        throw new AppError("Provider name is required.", 400);
+    }
+
+    const configuredProviderName = paymentProvider.name.trim();
+    if (selectedProviderName.toLowerCase() !== configuredProviderName.toLowerCase()) {
+        throw new AppError(`Provider "${selectedProviderName}" is not configured for this environment.`, 404);
+    }
+
+    const canonicalProviderName = configuredProviderName;
+    const rawBuffer = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody);
+    const verifiedEvent = await paymentProvider.verifyWebhook(rawBuffer, headers);
+
+    if (!verifiedEvent.provider || verifiedEvent.provider.trim().length === 0) {
+        throw new AppError("Verified webhook event is missing a provider identity.", 400);
+    }
+
+    if (verifiedEvent.provider.trim().toLowerCase() !== canonicalProviderName.toLowerCase()) {
+        throw new AppError(
+            `Verified webhook provider "${verifiedEvent.provider}" does not match the configured adapter "${canonicalProviderName}".`,
+            409
+        );
+    }
+
+    if (!verifiedEvent.providerEventId || !verifiedEvent.providerEventId.trim()) {
+        throw new AppError("Webhook payload is missing an event identifier.", 400);
+    }
+
+    const providerEventId = verifiedEvent.providerEventId.trim();
+    const claimResult = await paymentRepository.claimWebhookEvent(canonicalProviderName, providerEventId, {
+        eventType: verifiedEvent.eventType,
+        providerPaymentId: verifiedEvent.providerPaymentId ?? null,
+        occurredAt: verifiedEvent.occurredAt ?? null,
+    });
+    const eventRecord = claimResult.event;
+
+    if (claimResult.state === "busy") {
+        return {
+            acknowledged: false,
+            retryable: true,
+            idempotent: true,
+            event: eventRecord,
+            payment: eventRecord.paymentId ? await paymentRepository.findPaymentById(eventRecord.paymentId) : null,
+        };
+    }
+
+    if (claimResult.state === "duplicate") {
+        return {
+            acknowledged: true,
+            idempotent: true,
+            event: eventRecord,
+            payment: eventRecord.paymentId ? await paymentRepository.findPaymentById(eventRecord.paymentId) : null,
+        };
+    }
+
+    if (claimResult.state === "retry") {
+        return {
+            acknowledged: false,
+            retryable: true,
+            idempotent: false,
+            event: eventRecord,
+            payment: eventRecord.paymentId ? await paymentRepository.findPaymentById(eventRecord.paymentId) : null,
+        };
+    }
+
+    if (!verifiedEvent.providerPaymentId || !verifiedEvent.providerPaymentId.trim()) {
+        const retryableEvent = await paymentRepository.updateWebhookEventStatus(
+            eventRecord.id,
+            {
+                status: PaymentWebhookEventStatus.FAILED,
+                paymentId: eventRecord.paymentId ?? null,
+                providerPaymentId: null,
+                reason: "Verified webhook event did not include a providerPaymentId; retry is required.",
+                processedAt: new Date(),
+            },
+            { expectedStatus: [PaymentWebhookEventStatus.PROCESSING, PaymentWebhookEventStatus.FAILED] }
+        );
+
+        return {
+            acknowledged: false,
+            retryable: true,
+            idempotent: false,
+            event: retryableEvent,
+            payment: eventRecord.paymentId ? await paymentRepository.findPaymentById(eventRecord.paymentId) : null,
+        };
+    }
+
+    const canonicalProviderPaymentId = verifiedEvent.providerPaymentId.trim();
+    const resolvedPayment = await resolveWebhookPayment(canonicalProviderName, verifiedEvent);
+    if (!resolvedPayment) {
+        const retryableEvent = await paymentRepository.updateWebhookEventStatus(
+            eventRecord.id,
+            {
+                status: PaymentWebhookEventStatus.FAILED,
+                paymentId: eventRecord.paymentId ?? null,
+                providerPaymentId: canonicalProviderPaymentId,
+                reason: "Verified provider payment reference did not resolve to a local payment yet; retry is required.",
+                processedAt: new Date(),
+            },
+            { expectedStatus: [PaymentWebhookEventStatus.PROCESSING, PaymentWebhookEventStatus.FAILED] }
+        );
+
+        return {
+            acknowledged: false,
+            retryable: true,
+            idempotent: false,
+            event: retryableEvent,
+            payment: null,
+        };
+    }
+
+    if (verifiedEvent.paymentStatus === null || verifiedEvent.paymentStatus === undefined) {
+        const retryableEvent = await paymentRepository.updateWebhookEventStatus(
+            eventRecord.id,
+            {
+                status: PaymentWebhookEventStatus.FAILED,
+                paymentId: resolvedPayment.id,
+                providerPaymentId: canonicalProviderPaymentId,
+                reason: "Verified webhook event did not include an actionable payment status; retry is required.",
+                processedAt: new Date(),
+            },
+            { expectedStatus: [PaymentWebhookEventStatus.PROCESSING, PaymentWebhookEventStatus.FAILED] }
+        );
+
+        return {
+            acknowledged: false,
+            retryable: true,
+            idempotent: false,
+            event: retryableEvent,
+            payment: resolvedPayment,
+        };
+    }
+
+    if (resolvedPayment.provider && resolvedPayment.provider !== canonicalProviderName) {
+        throw new AppError("Webhook payment provider identity does not match the local payment record.", 409);
+    }
+
+    if (resolvedPayment.providerPaymentId && resolvedPayment.providerPaymentId !== canonicalProviderPaymentId) {
+        throw new AppError("Webhook provider payment reference does not match the local payment record.", 409);
+    }
+
+    if (verifiedEvent.paymentStatus === resolvedPayment.status) {
+        const processed = await paymentRepository.finalizeWebhookTransition(eventRecord.id, resolvedPayment.id, {
+            paymentStatus: resolvedPayment.status,
+            finalEventStatus: PaymentWebhookEventStatus.PROCESSED,
+            provider: canonicalProviderName,
+            providerPaymentId: canonicalProviderPaymentId,
+            reason: "Webhook status already matched the persisted payment status; no mutation was required.",
+            metadata: {
+                provider: canonicalProviderName,
+                providerEventId,
+                eventType: verifiedEvent.eventType,
+            } as PaymentMetadataObject as Prisma.PaymentUncheckedUpdateInput["metadata"],
+        });
+
+        return {
+            acknowledged: true,
+            idempotent: false,
+            event: processed.event,
+            payment: processed.payment,
+        };
+    }
+
+    const allowedTransition = VALID_TRANSITIONS[resolvedPayment.status] ?? [];
+    if (!allowedTransition.includes(verifiedEvent.paymentStatus)) {
+        const ignored = await paymentRepository.finalizeWebhookTransition(eventRecord.id, resolvedPayment.id, {
+            paymentStatus: resolvedPayment.status,
+            finalEventStatus: PaymentWebhookEventStatus.IGNORED,
+            provider: canonicalProviderName,
+            providerPaymentId: canonicalProviderPaymentId,
+            reason: `Webhook payment status ${verifiedEvent.paymentStatus} is stale or out of order for payment status ${resolvedPayment.status}.`,
+            metadata: {
+                provider: canonicalProviderName,
+                providerEventId,
+                eventType: verifiedEvent.eventType,
+            } as PaymentMetadataObject as Prisma.PaymentUncheckedUpdateInput["metadata"],
+        });
+
+        return {
+            acknowledged: true,
+            idempotent: false,
+            event: ignored.event,
+            payment: ignored.payment,
+        };
+    }
+
+    try {
+        validateStatusTransition(resolvedPayment.status, verifiedEvent.paymentStatus);
+
+        const processed = await paymentRepository.finalizeWebhookTransition(eventRecord.id, resolvedPayment.id, {
+            paymentStatus: verifiedEvent.paymentStatus,
+            finalEventStatus: PaymentWebhookEventStatus.PROCESSED,
+            provider: canonicalProviderName,
+            providerPaymentId: canonicalProviderPaymentId,
+            reason: null,
+            metadata: mergeMetadata(resolvedPayment.metadata, {
+                provider: canonicalProviderName,
+                providerEventId,
+                eventType: verifiedEvent.eventType,
+            } as PaymentMetadataObject) as Prisma.PaymentUncheckedUpdateInput["metadata"],
+        });
+
+        return {
+            acknowledged: true,
+            idempotent: false,
+            event: processed.event,
+            payment: processed.payment,
+        };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Webhook processing failed.";
+        const failed = await paymentRepository.finalizeWebhookTransition(eventRecord.id, resolvedPayment.id, {
+            paymentStatus: resolvedPayment.status,
+            finalEventStatus: PaymentWebhookEventStatus.FAILED,
+            provider: canonicalProviderName,
+            providerPaymentId: canonicalProviderPaymentId,
+            reason: message,
+            metadata: {
+                provider: canonicalProviderName,
+                providerEventId,
+                eventType: verifiedEvent.eventType,
+            } as PaymentMetadataObject as Prisma.PaymentUncheckedUpdateInput["metadata"],
+        });
+
+        if (error instanceof AppError) {
+            return {
+                acknowledged: false,
+                retryable: true,
+                idempotent: false,
+                event: failed.event,
+                payment: failed.payment,
+            };
+        }
+
+        throw error;
+    }
+};
+
 export const getPaymentById = async (id: string) => paymentRepository.findPaymentById(id);
 
 export const getPaymentsByOrderId = async (orderId: string) =>
@@ -221,11 +482,53 @@ const updatePaymentWithTransition = async (
     const mergedMetadata = mergeMetadata(payment.metadata, operationMetadata);
     const metadataValue = mergedMetadata === undefined ? undefined : mergedMetadata ?? Prisma.DbNull;
 
-    return paymentRepository.updatePaymentStatus(payment.id, nextStatus, {
-        provider: providerData?.provider ?? payment.provider,
-        providerPaymentId: providerData?.providerPaymentId ?? payment.providerPaymentId,
-        metadata: providerData?.metadata ?? metadataValue,
-    });
+    try {
+        return await paymentRepository.updatePaymentStatus(payment.id, nextStatus, {
+            provider: providerData?.provider ?? payment.provider,
+            providerPaymentId: providerData?.providerPaymentId ?? payment.providerPaymentId,
+            metadata: providerData?.metadata ?? metadataValue,
+        });
+    } catch (error: any) {
+        if (error?.code === "P2002") {
+            throw new AppError("A payment with the same provider transaction identity already exists.", 409);
+        }
+
+        throw error;
+    }
+};
+
+export const authorizeOrderPayment = async (
+    orderId: string,
+    buyerId: string,
+    paymentProvider: PaymentProvider = getConfiguredPaymentProvider()
+) => {
+    const order = await orderRepository.findOrderById(orderId);
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    if (order.buyerId !== buyerId) {
+        throw new AppError("You are not authorized to perform this action.", 403);
+    }
+
+    if (order.transactionType === ListingType.SALE) {
+        throw new AppError(
+            "Sale authorization is currently unavailable because the persisted order currency is missing.",
+            409
+        );
+    }
+
+    if (order.transactionType === ListingType.RENT) {
+        throw new AppError(
+            "Rent authorization is currently unavailable because the authoritative rental total/pricing contract and currency are not yet defined.",
+            409
+        );
+    }
+
+    throw new AppError(
+        `Unsupported order transaction type: ${order.transactionType}.`,
+        409
+    );
 };
 
 export const createPaymentRecord = async ({

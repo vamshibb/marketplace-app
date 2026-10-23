@@ -22,6 +22,7 @@ import messageRoutes
 import notificationRoutes
   from "./routes/notification.routes";
 import orderRoutes from "./routes/order.routes";
+import paymentRoutes from "./routes/payment.routes";
 
 import userReviewRoutes from "./routes/userReview.routes";
 import userRoutes from "./routes/user.routes";
@@ -30,6 +31,7 @@ import realtimeRoutes from "./routes/realtime.routes";
 const app = express();
 
 app.use(cors());
+app.use("/api/payments/webhooks", express.raw({ type: "*/*", limit: "1mb" }));
 app.use(express.json());
 
 app.get(
@@ -63,6 +65,7 @@ app.use("/api", messageRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", realtimeRoutes);
 app.use("/api", orderRoutes);
+app.use("/api", paymentRoutes);
 app.use(errorMiddleware);
 
 app.listen(env.PORT, () => {
