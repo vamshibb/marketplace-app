@@ -95,6 +95,7 @@ const {
   releaseRentalDeposit,
   captureRentalDeposit,
   settleCancelledOrderPayment,
+  getSellerPayoutReadiness,
 } = require('../src/services/payment.service.ts');
 
 const clearState = () => {
@@ -985,7 +986,7 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
     getStatus: async () => ({ provider: 'mock-provider', providerPaymentId: 'settle-main-auth', status: PaymentStatus.CAPTURED }),
   };
 
-  const saleOrder = { id: 'sale-settlement-order', transactionType: ListingType.SALE };
+  const saleOrder = { id: 'sale-settlement-order', sellerId: 'seller-1', transactionType: ListingType.SALE };
   orders.set('sale-settlement-order', saleOrder);
   const salePayment = await createPaymentRecord({
     orderId: 'sale-settlement-order',
@@ -1000,7 +1001,7 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
   assert.equal(settledCancelled.id, authorized.id);
   assert.equal(settledCancelled.status, PaymentStatus.CANCELLED);
 
-  const capturedOrder = { id: 'sale-settlement-captured-order', transactionType: ListingType.RENT };
+  const capturedOrder = { id: 'sale-settlement-captured-order', sellerId: 'seller-2', transactionType: ListingType.RENT };
   orders.set('sale-settlement-captured-order', capturedOrder);
   const rentPayment = await createPaymentRecord({
     orderId: 'sale-settlement-captured-order',
@@ -1015,7 +1016,7 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
   assert.equal(settledRefunded.id, capturedRent.id);
   assert.equal(settledRefunded.status, PaymentStatus.REFUNDED);
 
-  const cancelledOrder = { id: 'sale-settlement-cancelled-order', transactionType: ListingType.SALE };
+  const cancelledOrder = { id: 'sale-settlement-cancelled-order', sellerId: 'seller-3', transactionType: ListingType.SALE };
   orders.set('sale-settlement-cancelled-order', cancelledOrder);
   const cancelledPayment = await createPaymentRecord({
     orderId: 'sale-settlement-cancelled-order',
@@ -1032,7 +1033,7 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
   assert.equal(settledAlreadyCancelled.id, cancelledPayment.id);
   assert.equal(settledAlreadyCancelled.status, PaymentStatus.CANCELLED);
 
-  const refundedOrder = { id: 'sale-settlement-refunded-order', transactionType: ListingType.RENT };
+  const refundedOrder = { id: 'sale-settlement-refunded-order', sellerId: 'seller-4', transactionType: ListingType.RENT };
   orders.set('sale-settlement-refunded-order', refundedOrder);
   const refundedPayment = await createPaymentRecord({
     orderId: 'sale-settlement-refunded-order',
@@ -1049,7 +1050,7 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
   assert.equal(settledAlreadyRefunded.id, refundedPayment.id);
   assert.equal(settledAlreadyRefunded.status, PaymentStatus.REFUNDED);
 
-  const pendingOrder = { id: 'sale-settlement-pending-order', transactionType: ListingType.SALE };
+  const pendingOrder = { id: 'sale-settlement-pending-order', sellerId: 'seller-5', transactionType: ListingType.SALE };
   orders.set('sale-settlement-pending-order', pendingOrder);
   const pendingPayment = await createPaymentRecord({
     orderId: 'sale-settlement-pending-order',
@@ -1068,7 +1069,7 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
     (error) => error && error.statusCode === 404
   );
 
-  const missingMainOrder = { id: 'sale-settlement-no-main', transactionType: ListingType.SALE };
+  const missingMainOrder = { id: 'sale-settlement-no-main', sellerId: 'seller-6', transactionType: ListingType.SALE };
   orders.set('sale-settlement-no-main', missingMainOrder);
   await assert.rejects(
     settleCancelledOrderPayment('sale-settlement-no-main', provider),
@@ -1076,4 +1077,66 @@ test('cancelled-order settlement resolves the main payment and rejects ambiguous
   );
 
   assert.ok(pendingPayment.id);
+});
+
+test('seller payout readiness reports only captured main payments as ready', async () => {
+  clearState();
+
+  const readyOrder = { id: 'payout-ready-order', sellerId: 'seller-ready', transactionType: ListingType.SALE };
+  orders.set('payout-ready-order', readyOrder);
+  const readyPayment = await createPaymentRecord({
+    orderId: 'payout-ready-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '52.00',
+    currency: 'USD',
+    idempotencyKey: 'payout-ready-order-main',
+  });
+
+  const pendingReadiness = await getSellerPayoutReadiness('payout-ready-order');
+  assert.equal(pendingReadiness.ready, false);
+  assert.equal(pendingReadiness.grossAmount, '52.00');
+  assert.equal(pendingReadiness.currency, 'USD');
+
+  const authorized = await authorizePayment(readyPayment.id, mockProvider);
+  const afterAuthorize = await getSellerPayoutReadiness('payout-ready-order');
+  assert.equal(afterAuthorize.ready, false);
+  assert.equal(afterAuthorize.paymentId, authorized.id);
+
+  const captured = await capturePayment(authorized.id, mockProvider);
+  const ready = await getSellerPayoutReadiness('payout-ready-order');
+  assert.deepEqual(ready, {
+    orderId: 'payout-ready-order',
+    sellerId: 'seller-ready',
+    paymentId: captured.id,
+    grossAmount: '52.00',
+    currency: 'USD',
+    ready: true,
+  });
+
+  const rentOrder = { id: 'payout-rent-order', sellerId: 'seller-rent', transactionType: ListingType.RENT };
+  orders.set('payout-rent-order', rentOrder);
+  const rentPayment = await createPaymentRecord({
+    orderId: 'payout-rent-order',
+    purpose: PaymentPurpose.RENT,
+    amount: '79.00',
+    currency: 'USD',
+    idempotencyKey: 'payout-rent-order-main',
+  });
+  const rentReadiness = await getSellerPayoutReadiness('payout-rent-order');
+  assert.equal(rentReadiness.ready, false);
+  assert.equal(rentReadiness.grossAmount, '79.00');
+
+  await assert.rejects(
+    getSellerPayoutReadiness('missing-order'),
+    (error) => error && error.statusCode === 404
+  );
+
+  const missingMainOrder = { id: 'payout-missing-main', sellerId: 'seller-no-main', transactionType: ListingType.SALE };
+  orders.set('payout-missing-main', missingMainOrder);
+  await assert.rejects(
+    getSellerPayoutReadiness('payout-missing-main'),
+    (error) => error && error.statusCode === 404
+  );
+
+  assert.ok(rentPayment.id);
 });

@@ -80,17 +80,4 @@ Only one worker may claim an event for processing. Stale or out-of-order webhook
 
 Retryable webhook failures return a retryable HTTP response instead of being acknowledged as successful.
 
-## Deferred work
-
-M4C:
-- rental deposits
-
-M4D:
-- refunds and settlement
-- seller payouts
-- partial refund accounting
-
-M4E:
-- frontend checkout and payment status UX
-
-The payment and order lifecycles remain separate until later milestones explicitly connect them.
+feat: add seller payout readiness

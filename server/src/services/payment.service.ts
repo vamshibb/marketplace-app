@@ -676,6 +676,30 @@ const resolveMainPaymentPurposeForOrder = (transactionType: ListingType): Paymen
     throw new AppError(`Unsupported order transaction type: ${transactionType}.`, 409);
 };
 
+export const getSellerPayoutReadiness = async (orderId: string) => {
+    const order = await orderRepository.findOrderById(orderId);
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    const paymentPurpose = resolveMainPaymentPurposeForOrder(order.transactionType);
+    const payment = await paymentRepository.findPaymentByOrderAndPurpose(orderId, paymentPurpose);
+    if (!payment) {
+        throw new AppError(`Order ${orderId} does not have a ${paymentPurpose} payment record.`, 404);
+    }
+
+    const ready = payment.status === PaymentStatus.CAPTURED;
+
+    return {
+        orderId: order.id,
+        sellerId: order.sellerId,
+        paymentId: payment.id,
+        grossAmount: payment.amount.toFixed(2),
+        currency: payment.currency,
+        ready,
+    };
+};
+
 export const settleCancelledOrderPayment = async (
     orderId: string,
     paymentProvider: PaymentProvider
