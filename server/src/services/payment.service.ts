@@ -429,6 +429,24 @@ export const getPaymentsByOrderId = async (orderId: string) =>
 export const getPaymentByOrderAndPurpose = async (orderId: string, purpose: PaymentPurpose) =>
     paymentRepository.findPaymentByOrderAndPurpose(orderId, purpose);
 
+const requireRentalDepositForOrder = async (orderId: string) => {
+    const order = await orderRepository.findOrderById(orderId);
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    if (order.transactionType !== ListingType.RENT) {
+        throw new AppError("Rental deposit operations are only valid for RENT orders.", 409);
+    }
+
+    const deposit = await paymentRepository.findPaymentByOrderAndPurpose(orderId, PaymentPurpose.RENT_DEPOSIT);
+    if (!deposit) {
+        throw new AppError(`Order ${orderId} does not have a RENT_DEPOSIT payment record.`, 409);
+    }
+
+    return deposit;
+};
+
 export const requirePaymentRecord = async (id: string) => {
     const payment = await paymentRepository.findPaymentById(id);
     if (!payment) {
@@ -645,6 +663,70 @@ export const createPaymentRecord = async ({
 };
 
 export const createPaymentForOrder = createPaymentRecord;
+
+export const authorizeRentalDeposit = async (
+    orderId: string,
+    paymentProvider: PaymentProvider
+) => {
+    const deposit = await requireRentalDepositForOrder(orderId);
+
+    if (deposit.status === PaymentStatus.AUTHORIZED) {
+        return deposit;
+    }
+
+    if (deposit.status !== PaymentStatus.PENDING) {
+        throw new AppError(
+            `RENT_DEPOSIT payment cannot be authorized from status ${deposit.status}.`,
+            409
+        );
+    }
+
+    return authorizePayment(deposit.id, paymentProvider);
+};
+
+export const releaseRentalDeposit = async (
+    orderId: string,
+    paymentProvider: PaymentProvider
+) => {
+    const deposit = await requireRentalDepositForOrder(orderId);
+
+    if (deposit.status === PaymentStatus.CANCELLED) {
+        return deposit;
+    }
+
+    if (deposit.status === PaymentStatus.CAPTURED) {
+        throw new AppError("A captured RENT_DEPOSIT payment cannot be released.", 409);
+    }
+
+    if (deposit.status !== PaymentStatus.AUTHORIZED) {
+        throw new AppError(
+            `RENT_DEPOSIT payment cannot be released from status ${deposit.status}.`,
+            409
+        );
+    }
+
+    return cancelPayment(deposit.id, paymentProvider);
+};
+
+export const captureRentalDeposit = async (
+    orderId: string,
+    paymentProvider: PaymentProvider
+) => {
+    const deposit = await requireRentalDepositForOrder(orderId);
+
+    if (deposit.status === PaymentStatus.CAPTURED) {
+        return deposit;
+    }
+
+    if (deposit.status !== PaymentStatus.AUTHORIZED) {
+        throw new AppError(
+            `RENT_DEPOSIT payment can only be captured from AUTHORIZED; current status is ${deposit.status}.`,
+            409
+        );
+    }
+
+    return capturePayment(deposit.id, paymentProvider);
+};
 
 export const authorizePayment = async (
     paymentId: string,

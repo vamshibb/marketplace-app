@@ -13,6 +13,9 @@ const orders = new Map([
   ['capture-order', { id: 'capture-order', transactionType: ListingType.SALE }],
   ['cancel-order', { id: 'cancel-order', transactionType: ListingType.RENT }],
   ['refund-order', { id: 'refund-order', transactionType: ListingType.SALE }],
+  ['rent-order-hold', { id: 'rent-order-hold', transactionType: ListingType.RENT }],
+  ['rent-order-capture', { id: 'rent-order-capture', transactionType: ListingType.RENT }],
+  ['rent-order-release', { id: 'rent-order-release', transactionType: ListingType.RENT }],
 ]);
 
 const orderRepositoryModule = new Module(orderRepositoryId);
@@ -80,7 +83,18 @@ paymentRepositoryModule.exports = {
 };
 require.cache[paymentRepositoryId] = paymentRepositoryModule;
 
-const { createPaymentRecord, authorizePayment, capturePayment, cancelPayment, refundPayment, syncPaymentStatus, createPaymentForOrder } = require('../src/services/payment.service.ts');
+const {
+  createPaymentRecord,
+  authorizePayment,
+  capturePayment,
+  cancelPayment,
+  refundPayment,
+  syncPaymentStatus,
+  createPaymentForOrder,
+  authorizeRentalDeposit,
+  releaseRentalDeposit,
+  captureRentalDeposit,
+} = require('../src/services/payment.service.ts');
 
 const clearState = () => {
   paymentRepositoryState.created.length = 0;
@@ -816,6 +830,103 @@ test('concurrent unique-constraint races return equivalent payment or clean 409'
   paymentRepositoryModule.exports.createPayment = previousCreatePayment;
   paymentRepositoryModule.exports.findPaymentByOrderAndPurpose = previousOrderAndPurposeSearch;
   paymentRepositoryModule.exports.findPaymentByIdempotencyKey = previousIdempotencySearch;
+});
+
+test('rental deposit lifecycle uses the existing rental deposit payment for RENT orders only', async () => {
+  clearState();
+
+  await createPaymentRecord({
+    orderId: 'rent-order-hold',
+    purpose: PaymentPurpose.RENT,
+    amount: '120.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-deposit-lifecycle-rent-hold',
+  });
+
+  const holdDeposit = await createPaymentRecord({
+    orderId: 'rent-order-hold',
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '25.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-deposit-lifecycle-deposit-hold',
+  });
+
+  const authorized = await authorizeRentalDeposit('rent-order-hold', mockProvider);
+  assert.equal(authorized.id, holdDeposit.id);
+  assert.equal(authorized.status, PaymentStatus.AUTHORIZED);
+
+  const alreadyAuthorized = await authorizeRentalDeposit('rent-order-hold', mockProvider);
+  assert.equal(alreadyAuthorized.id, holdDeposit.id);
+  assert.equal(alreadyAuthorized.status, PaymentStatus.AUTHORIZED);
+
+  const releasePaymentRecord = await createPaymentRecord({
+    orderId: 'rent-order-release',
+    purpose: PaymentPurpose.RENT,
+    amount: '140.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-deposit-lifecycle-rent-release',
+  });
+  const releaseDeposit = await createPaymentRecord({
+    orderId: 'rent-order-release',
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '35.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-deposit-lifecycle-deposit-release',
+  });
+  const authorizedRelease = await authorizePayment(releaseDeposit.id, mockProvider);
+  const released = await releaseRentalDeposit('rent-order-release', mockProvider);
+  assert.equal(released.id, authorizedRelease.id);
+  assert.equal(released.status, PaymentStatus.CANCELLED);
+
+  const alreadyReleased = await releaseRentalDeposit('rent-order-release', mockProvider);
+  assert.equal(alreadyReleased.id, authorizedRelease.id);
+  assert.equal(alreadyReleased.status, PaymentStatus.CANCELLED);
+
+  const capturePaymentRecord = await createPaymentRecord({
+    orderId: 'rent-order-capture',
+    purpose: PaymentPurpose.RENT,
+    amount: '160.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-deposit-lifecycle-rent-capture',
+  });
+  const captureDeposit = await createPaymentRecord({
+    orderId: 'rent-order-capture',
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '40.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-deposit-lifecycle-deposit-capture',
+  });
+  const authorizedCapture = await authorizePayment(captureDeposit.id, mockProvider);
+  const captured = await captureRentalDeposit('rent-order-capture', mockProvider);
+  assert.equal(captured.id, authorizedCapture.id);
+  assert.equal(captured.status, PaymentStatus.CAPTURED);
+
+  const alreadyCaptured = await captureRentalDeposit('rent-order-capture', mockProvider);
+  assert.equal(alreadyCaptured.id, authorizedCapture.id);
+  assert.equal(alreadyCaptured.status, PaymentStatus.CAPTURED);
+
+  await assert.rejects(
+    releaseRentalDeposit('rent-order-capture', mockProvider),
+    (error) => error && error.statusCode === 409
+  );
+
+  await assert.rejects(
+    authorizeRentalDeposit('sale-order', mockProvider),
+    (error) => error && error.statusCode === 409
+  );
+
+  await assert.rejects(
+    authorizeRentalDeposit('missing-order', mockProvider),
+    (error) => error && error.statusCode === 404
+  );
+
+  await assert.rejects(
+    authorizeRentalDeposit('rent-order', mockProvider),
+    (error) => error && error.statusCode === 409
+  );
+
+  assert.ok(releasePaymentRecord.id);
+  assert.ok(capturePaymentRecord.id);
 });
 
 test('provider failure still leaves the previous state unchanged', async () => {
