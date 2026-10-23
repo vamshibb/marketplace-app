@@ -1,5 +1,9 @@
+import { useState } from "react";
+import { isAxiosError } from "axios";
 import { BuyerReputation, OrderReviews } from "../../reviews";
 import { Link } from "react-router-dom";
+import { Button } from "../../../shared/ui/Button";
+import { useAuthorizeOrderPaymentMutation } from "../hooks/useOrderActionMutation";
 import type { Order, OrderRole } from "../types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { OrderActions } from "./OrderActions";
@@ -9,6 +13,9 @@ export const OrderCard = ({ order, role, selected = false, onReputationToggle }:
   const counterpart = role === "buyer" ? order.seller : order.buyer;
   const price = Number(order.unitPrice);
   const isRental = order.transactionType === "RENT";
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const authorizeOrderPayment = useAuthorizeOrderPaymentMutation(order.id);
   const from = order.requestedFrom?.slice(0, 10);
   const to = order.requestedTo?.slice(0, 10);
   const days = isRental ? rentalDuration(from, to) : 1;
@@ -40,6 +47,46 @@ export const OrderCard = ({ order, role, selected = false, onReputationToggle }:
         <div><dt className="text-slate-500">{isRental ? "Rental total" : "Total"}</dt><dd className="mt-1 font-semibold text-blue-600">{total === null ? "—" : formatPrice(total)}</dd></div>
         <div><dt className="text-slate-500">Created</dt><dd className="mt-1 text-slate-800"><time dateTime={order.createdAt}>{new Date(order.createdAt).toLocaleDateString()}</time></dd></div>
       </dl>
+      {role === "buyer" && (order.status === "ACCEPTED" || order.status === "ACTIVE") && (
+        <div className="space-y-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium text-slate-700">Payment</h3>
+              <p className="text-xs text-slate-500">
+                {paymentStatus ? `Status: ${paymentStatus}` : "Authorize payment to continue."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="primary"
+              isLoading={authorizeOrderPayment.isPending}
+              disabled={
+                paymentStatus === "AUTHORIZED" ||
+                paymentStatus === "CAPTURED"
+              }
+              onClick={() => {
+                setPaymentMessage(null);
+                void authorizeOrderPayment.mutateAsync()
+                  .then((payment) => {
+                    setPaymentStatus(payment.status);
+                  })
+                  .catch((error) => {
+                    const message = isAxiosError(error) && typeof error.response?.data?.message === "string"
+                      ? error.response.data.message
+                      : error instanceof Error
+                        ? error.message
+                        : "Payment unavailable.";
+                    setPaymentMessage(message);
+                  });
+              }}
+            >
+              {paymentStatus ? paymentStatus : "Authorize Payment"}
+            </Button>
+          </div>
+          {paymentMessage && <p className="text-xs text-red-600">{paymentMessage}</p>}
+        </div>
+      )}
       {order.notes?.trim() && (
         <div className="space-y-1 border-t border-slate-100 pt-3 text-sm">
           <h3 className="font-medium text-slate-700">Notes</h3>

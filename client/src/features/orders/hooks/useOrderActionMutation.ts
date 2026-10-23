@@ -2,7 +2,7 @@ import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-quer
 import { isAxiosError } from "axios";
 import toast from "react-hot-toast";
 import { useAuthStore, useCurrentUserQuery } from "../../auth";
-import { updateOrderStatus } from "../api/orderApi";
+import { authorizeOrderPayment, updateOrderStatus } from "../api/orderApi";
 import { ordersQueryKeys } from "../queryKeys";
 import type { Order, OrderAction } from "../types";
 
@@ -49,4 +49,35 @@ export const useOrderActionMutation = (orderId: string) => {
     },
   });
   return { ...mutation, isPending: mutation.isPending || pendingCount > 0 };
+};
+
+export const useAuthorizeOrderPaymentMutation = (orderId: string) => {
+  const { data: user } = useCurrentUserQuery();
+  const mutationKey = ["orders", user?.id, "payment", orderId] as const;
+
+  return useMutation({
+    mutationKey,
+    mutationFn: async () => {
+      const token = useAuthStore.getState().token;
+      if (!token || !user) throw new Error("Please sign in to pay for your order.");
+      return authorizeOrderPayment(orderId);
+    },
+    onSuccess: (payment) => {
+      toast.success(`Payment status: ${payment.status}`);
+    },
+    onError: (error) => {
+      const message: unknown = isAxiosError(error)
+        ? error.response?.data?.message
+        : undefined;
+
+      const backendMessage =
+        typeof message === "string"
+          ? message
+          : error instanceof Error
+            ? error.message
+            : "Payment unavailable.";
+
+      toast.error(backendMessage);
+    },
+  });
 };

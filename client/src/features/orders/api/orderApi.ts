@@ -26,3 +26,26 @@ export const getOrders = async (role: OrderRole, signal?: AbortSignal): Promise<
   const response = await api.get<ApiResponse<Order[]>>(`/orders/${role}`, { signal });
   return response.data.data;
 };
+
+export const authorizeOrderPayment = async (orderId: string): Promise<{
+  id: string;
+  orderId: string;
+  purpose: string;
+  amount: string;
+  currency: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}> => {
+  const response = await api.post<ApiResponse<{
+    id: string;
+    orderId: string;
+    purpose: string;
+    amount: string;
+    currency: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  }>>(`/orders/${encodeURIComponent(orderId)}/payments/authorize`, { orderId });
+  return response.data.data;
+};
