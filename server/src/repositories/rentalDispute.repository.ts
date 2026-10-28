@@ -1,4 +1,4 @@
-import { Prisma } from "../generated/prisma";
+import { Prisma,RentalDisputeResolution} from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
 export const rentalDisputeSelect = {
@@ -8,9 +8,12 @@ export const rentalDisputeSelect = {
     reason: true,
     details: true,
     status: true,
+    resolution: true,
+    resolvedAt: true,
     createdAt: true,
     updatedAt: true,
 } satisfies Prisma.RentalDisputeSelect;
+
 
 export const createRentalDispute = (
     data: Prisma.RentalDisputeUncheckedCreateInput
@@ -26,6 +29,31 @@ export const findRentalDisputeByOrderId = (
 ) => {
     return prisma.rentalDispute.findUnique({
         where: { orderId },
+        select: rentalDisputeSelect,
+    });
+};
+
+export const findRentalDisputeById = (
+    id: string
+) => {
+    return prisma.rentalDispute.findUnique({
+        where: { id },
+        select: rentalDisputeSelect,
+    });
+};
+
+export const resolveRentalDispute = (
+    id: string,
+    resolution: RentalDisputeResolution,
+    resolvedAt: Date
+) => {
+    return prisma.rentalDispute.update({
+        where: { id },
+        data: {
+            status: "RESOLVED",
+            resolution,
+            resolvedAt,
+        },
         select: rentalDisputeSelect,
     });
 };

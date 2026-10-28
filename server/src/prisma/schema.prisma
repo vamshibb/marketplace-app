@@ -66,6 +66,11 @@ enum PaymentWebhookEventStatus {
   FAILED
 }
 
+enum RentalDisputeResolution {
+  RELEASE_DEPOSIT
+  CAPTURE_DEPOSIT
+}
+
 model User {
   id                       String                    @id @default(cuid())
   email                    String                    @unique
@@ -303,17 +308,19 @@ model Order {
 }
 
 model RentalDispute {
-  id          String              @id @default(cuid())
-  orderId     String              @unique
+  id          String                   @id @default(cuid())
+  orderId     String                   @unique
   openedById  String
   reason      String
   details     String?
-  status      RentalDisputeStatus @default(OPEN)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  status      RentalDisputeStatus      @default(OPEN)
+  resolution  RentalDisputeResolution?
+  resolvedAt  DateTime?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
 
-  order       Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  openedBy    User                @relation("RentalDisputeOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  order       Order                    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  openedBy    User                     @relation("RentalDisputeOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
 
   @@index([openedById])
   @@index([status])
