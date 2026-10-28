@@ -154,3 +154,41 @@ export const resolveRentalDispute = async (
         new Date()
     );
 };
+export const getRentalDisputeForOrder = async (
+    orderId: string,
+    userId: string
+) => {
+    const order = await orderRepository.findOrderById(orderId);
+
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    if (order.transactionType !== "RENT") {
+        throw new AppError(
+            "Rental disputes are only available for RENT orders.",
+            409
+        );
+    }
+
+    if (
+        order.buyerId !== userId &&
+        order.sellerId !== userId
+    ) {
+        throw new AppError(
+            "You are not authorized to perform this action.",
+            403
+        );
+    }
+
+    const dispute =
+        await rentalDisputeRepository.findRentalDisputeByOrderId(
+            orderId
+        );
+
+    if (!dispute) {
+        throw new AppError("Rental dispute not found.", 404);
+    }
+
+    return dispute;
+};

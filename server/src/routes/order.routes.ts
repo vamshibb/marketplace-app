@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as rentalDisputeController from "../controllers/rentalDispute.controller";
 
 import * as orderController from "../controllers/order.controller";
 import { authMiddleware } from "../middleware/authMiddleware";
@@ -98,6 +99,20 @@ router.patch(
   authMiddleware,
   validate(orderParamsSchema, "params"),
   orderController.confirmRentalReturn
+);
+
+router.post(
+  "/orders/:orderId/dispute",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  rentalDisputeController.openDispute
+);
+
+router.get(
+  "/orders/:orderId/dispute",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  rentalDisputeController.getDispute
 );
 
 export default router;

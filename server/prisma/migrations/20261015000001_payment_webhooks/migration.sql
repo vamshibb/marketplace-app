@@ -1,4 +1,4 @@
-CREATE TYPE "PaymentWebhookEventStatus" AS ENUM ('RECEIVED', 'PROCESSING', 'PROCESSED', 'IGNORED', 'FAILED');
+CREATE TYPE "PaymentWebhookEventStatus" AS ENUM ('RECEIVED',  'PROCESSED', 'IGNORED', 'FAILED');
 
 -- CreateTable
 CREATE TABLE "PaymentWebhookEvent" (
