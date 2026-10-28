@@ -222,24 +222,91 @@ test('pending SALE creation/reject/cancel never reserves stock or emits availabi
   } finally { response.destroy(); }
 });
 
-test('rental SSE lifecycle emits acceptance/completion only, never pending/reject/cancel/start/return/failures', async t => {
-  const p = await f.product('RENT', 1), response = await listen(t, p);
-  const request = { quantity: 1, requestedFrom: new Date(`${window.from}T00:00:00Z`), requestedTo: new Date(`${window.to}T00:00:00Z`) };
+test('rental lifecycle enforces accepted -> active -> return_pending -> completed without skips', async t => {
+  const p = await f.product('RENT', 1);
+  const response = await listen(t, p);
+
+  const request = {
+    quantity: 1,
+    requestedFrom: new Date(`${window.from}T00:00:00Z`),
+    requestedTo: new Date(`${window.to}T00:00:00Z`),
+  };
+
+  // Cancelled/rejected rental requests must not emit availability changes.
   const cancelled = await orders.createOrder(p.id, f.buyer.id, request);
   await orders.cancelOrder(cancelled.id, f.buyer.id);
+
   const rejected = await orders.createOrder(p.id, f.buyer.id, request);
   await orders.rejectOrder(rejected.id, f.seller.id);
+
   const order = await orders.createOrder(p.id, f.buyer.id, request);
+
   assert.deepEqual(response.changes(), []);
+
+  // PENDING -> ACCEPTED
   await orders.acceptOrder(order.id, f.seller.id);
-  await assert.rejects(orders.acceptOrder(order.id, f.seller.id), conflict);
+  assert.equal(await status(order.id), 'ACCEPTED');
+
+  await assert.rejects(
+    orders.acceptOrder(order.id, f.seller.id),
+    conflict
+  );
+
+  // RENT orders cannot skip directly from ACCEPTED -> COMPLETED.
+  await assert.rejects(
+    orders.completeOrder(order.id, f.buyer.id)
+  );
+
+  // Only seller can start the rental.
+  await assert.rejects(
+    orders.transitionRental(order.id, f.buyer.id, 'start')
+  );
+
+  // ACCEPTED -> ACTIVE
   await orders.transitionRental(order.id, f.seller.id, 'start');
+  assert.equal(await status(order.id), 'ACTIVE');
+
+  // Cannot start the same rental again.
+  await assert.rejects(
+    orders.transitionRental(order.id, f.seller.id, 'start'),
+    conflict
+  );
+
+  // Only buyer can mark the rental returned.
+  await assert.rejects(
+    orders.transitionRental(order.id, f.seller.id, 'return')
+  );
+
+  // ACTIVE -> RETURN_PENDING
   await orders.transitionRental(order.id, f.buyer.id, 'return');
-  assert.deepEqual(response.changes(), [{ productId: p.id, reason: 'RENTAL_ACCEPTED' }]);
-  await orders.transitionRental(order.id, f.seller.id, 'confirm-return');
-  await assert.rejects(orders.transitionRental(order.id, f.seller.id, 'confirm-return'), conflict);
-  assert.equal(await status(order.id), 'COMPLETED');
+  assert.equal(await status(order.id), 'RETURN_PENDING');
+
+  // Start/return must not emit completion availability events.
   assert.deepEqual(response.changes(), [
-    { productId: p.id, reason: 'RENTAL_ACCEPTED' }, { productId: p.id, reason: 'RENTAL_COMPLETED' },
+    { productId: p.id, reason: 'RENTAL_ACCEPTED' },
+  ]);
+
+  // Buyer cannot confirm their own return.
+  await assert.rejects(
+    orders.transitionRental(order.id, f.buyer.id, 'confirm-return')
+  );
+
+  // RETURN_PENDING -> COMPLETED
+  await orders.transitionRental(order.id, f.seller.id, 'confirm-return');
+  assert.equal(await status(order.id), 'COMPLETED');
+
+  // Completed rental cannot transition again.
+  await assert.rejects(
+    orders.transitionRental(order.id, f.seller.id, 'confirm-return'),
+    conflict
+  );
+
+  await assert.rejects(
+    orders.transitionRental(order.id, f.buyer.id, 'return')
+  );
+
+  assert.deepEqual(response.changes(), [
+    { productId: p.id, reason: 'RENTAL_ACCEPTED' },
+    { productId: p.id, reason: 'RENTAL_COMPLETED' },
   ]);
 });
