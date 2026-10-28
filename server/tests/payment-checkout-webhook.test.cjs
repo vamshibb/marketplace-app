@@ -336,6 +336,163 @@ test('stale webhook event becomes IGNORED instead of regressing a payment', asyn
     });
 });
 
+test('duplicate and already-final webhook events do not mutate the local payment twice', async () => {
+    const payment = {
+        id: 'pay-duplicate-final',
+        orderId: 'order-duplicate-final',
+        provider: 'trusted-provider',
+        providerPaymentId: 'pay_duplicate_final',
+        purpose: PaymentPurpose.SALE,
+        status: PaymentStatus.CAPTURED,
+        amount: '100.00',
+        currency: 'USD',
+        metadata: null,
+    };
+
+    let finalizeCalls = 0;
+
+    await withPaymentStubs({
+        claimWebhookEvent: async () => ({
+            event: { id: 'webhook-duplicate', provider: 'trusted-provider', providerEventId: 'evt-duplicate', eventType: 'payment.succeeded', providerPaymentId: 'pay_duplicate_final', paymentId: payment.id, status: 'PROCESSED', processedAt: new Date(), reason: null },
+            claimed: false,
+            created: false,
+            state: 'duplicate',
+        }),
+        findPaymentById: async () => payment,
+        findPaymentByProviderReference: async () => payment,
+        finalizeWebhookTransition: async () => {
+            finalizeCalls += 1;
+            return { payment, event: { id: 'webhook-duplicate', status: 'PROCESSED' } };
+        },
+    }, async () => {
+        const result = await paymentService.processWebhookEvent('trusted-provider', Buffer.from('{}'), {}, {
+            name: 'trusted-provider',
+            async authorize() { throw new Error('not used'); },
+            async capture() { throw new Error('not used'); },
+            async cancel() { throw new Error('not used'); },
+            async refund() { throw new Error('not used'); },
+            async getStatus() { throw new Error('not used'); },
+            async verifyWebhook() {
+                return {
+                    provider: 'trusted-provider',
+                    providerEventId: 'evt-duplicate',
+                    eventType: 'payment.succeeded',
+                    providerPaymentId: 'pay_duplicate_final',
+                    paymentStatus: PaymentStatus.CAPTURED,
+                    occurredAt: new Date(),
+                    safeMetadata: null,
+                };
+            },
+        });
+
+        assert.equal(result.idempotent, true);
+        assert.equal(result.payment.status, PaymentStatus.CAPTURED);
+        assert.equal(finalizeCalls, 0);
+    });
+
+    await withPaymentStubs({
+        claimWebhookEvent: async () => ({
+            event: { id: 'webhook-already-final', provider: 'trusted-provider', providerEventId: 'evt-already-final', eventType: 'payment.succeeded', providerPaymentId: 'pay_duplicate_final', paymentId: payment.id, status: 'PROCESSING', processedAt: null, reason: null },
+            claimed: true,
+            created: true,
+            state: 'claimed',
+        }),
+        findPaymentByProviderReference: async () => payment,
+        finalizeWebhookTransition: async () => {
+            finalizeCalls += 1;
+            return { payment, event: { id: 'webhook-already-final', status: 'PROCESSED' } };
+        },
+    }, async () => {
+        const result = await paymentService.processWebhookEvent('trusted-provider', Buffer.from('{}'), {}, {
+            name: 'trusted-provider',
+            async authorize() { throw new Error('not used'); },
+            async capture() { throw new Error('not used'); },
+            async cancel() { throw new Error('not used'); },
+            async refund() { throw new Error('not used'); },
+            async getStatus() { throw new Error('not used'); },
+            async verifyWebhook() {
+                return {
+                    provider: 'trusted-provider',
+                    providerEventId: 'evt-already-final',
+                    eventType: 'payment.succeeded',
+                    providerPaymentId: 'pay_duplicate_final',
+                    paymentStatus: PaymentStatus.CAPTURED,
+                    occurredAt: new Date(),
+                    safeMetadata: null,
+                };
+            },
+        });
+
+        assert.equal(result.acknowledged, true);
+        assert.equal(result.payment.status, PaymentStatus.CAPTURED);
+        assert.equal(finalizeCalls, 1);
+    });
+});
+
+test('retryable webhook failure can be retried without regressing payment state', async () => {
+    await withPaymentStubs({
+        claimWebhookEvent: async () => ({
+            event: {
+                id: 'webhook-retry',
+                provider: 'trusted-provider',
+                providerEventId: 'evt-retry',
+                eventType: 'payment.succeeded',
+                providerPaymentId: 'pay_retryable',
+                paymentId: null,
+                status: 'PROCESSING',
+                processedAt: null,
+                reason: null,
+            },
+            claimed: true,
+            created: true,
+            state: 'claimed',
+        }),
+
+        findPaymentByProviderReference: async () => null,
+
+        updateWebhookEventStatus: async (_, payload) => ({
+            id: 'webhook-retry',
+            provider: 'trusted-provider',
+            providerEventId: 'evt-retry',
+            eventType: 'payment.succeeded',
+            providerPaymentId: 'pay_retryable',
+            paymentId: null,
+            status: 'FAILED',
+            processedAt: new Date(),
+            reason: payload.reason,
+        }),
+    }, async () => {
+        const result = await paymentService.processWebhookEvent(
+            'trusted-provider',
+            Buffer.from('{}'),
+            {},
+            {
+                name: 'trusted-provider',
+                async authorize() { throw new Error('not used'); },
+                async capture() { throw new Error('not used'); },
+                async cancel() { throw new Error('not used'); },
+                async refund() { throw new Error('not used'); },
+                async getStatus() { throw new Error('not used'); },
+                async verifyWebhook() {
+                    return {
+                        provider: 'trusted-provider',
+                        providerEventId: 'evt-retry',
+                        eventType: 'payment.succeeded',
+                        providerPaymentId: 'pay_retryable',
+                        paymentStatus: PaymentStatus.CAPTURED,
+                        occurredAt: new Date(),
+                        safeMetadata: null,
+                    };
+                },
+            }
+        );
+
+        assert.equal(result.acknowledged, false);
+        assert.equal(result.retryable, true);
+        assert.equal(result.event.status, 'FAILED');
+    });
+});
+
 test('unknown provider is rejected before processing', async () => {
     await assert.rejects(
         () => paymentService.processWebhookEvent('unknown-provider', Buffer.from('{}'), {}, {

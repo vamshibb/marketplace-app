@@ -547,6 +547,195 @@ test('generic arbitrary status updates are not exposed and provider failure leav
   assert.equal(refreshed.id, payment.id);
 });
 
+test('repeated provider operations do not call the provider again once the terminal state already exists', async () => {
+  clearState();
+
+  const authProvider = {
+    authorizeCalls: 0,
+    captureCalls: 0,
+    cancelCalls: 0,
+    refundCalls: 0,
+    authorize: async (input) => {
+      authProvider.authorizeCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: `auth-${input.orderId}`, status: PaymentStatus.AUTHORIZED, metadata: { strategy: 'iterative-authorize' } };
+    },
+    capture: async (input) => {
+      authProvider.captureCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `capture-${input.orderId}`, status: PaymentStatus.CAPTURED, metadata: { strategy: 'iterative-capture' } };
+    },
+    cancel: async (input) => {
+      authProvider.cancelCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `cancel-${input.orderId}`, status: PaymentStatus.CANCELLED, metadata: { strategy: 'iterative-cancel' } };
+    },
+    refund: async (input) => {
+      authProvider.refundCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `refund-${input.orderId}`, status: PaymentStatus.REFUNDED, metadata: { strategy: 'iterative-refund' } };
+    },
+    getStatus: async () => ({ provider: 'mock-provider', providerPaymentId: 'status-ref', status: PaymentStatus.CAPTURED }),
+  };
+
+  orders.set('sale-authorize-idempotency', { id: 'sale-authorize-idempotency', transactionType: ListingType.SALE });
+  const authorizePaymentRecord = await createPaymentRecord({
+    orderId: 'sale-authorize-idempotency',
+    purpose: PaymentPurpose.SALE,
+    amount: '55.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-authorize-idempotency',
+  });
+  const authorized = await authorizePayment(authorizePaymentRecord.id, authProvider);
+  assert.equal(authProvider.authorizeCalls, 1);
+  assert.equal(authorized.status, PaymentStatus.AUTHORIZED);
+  await assert.rejects(
+    authorizePayment(authorizePaymentRecord.id, authProvider),
+    (error) => {
+      assert.equal(authProvider.authorizeCalls, 1);
+      return error && error.statusCode === 409;
+    }
+  );
+
+  orders.set('sale-capture-idempotency', { id: 'sale-capture-idempotency', transactionType: ListingType.SALE });
+  const capturePaymentRecord = await createPaymentRecord({
+    orderId: 'sale-capture-idempotency',
+    purpose: PaymentPurpose.SALE,
+    amount: '65.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-capture-idempotency',
+  });
+  const captureAuthorized = await authorizePayment(capturePaymentRecord.id, authProvider);
+  const captured = await capturePayment(captureAuthorized.id, authProvider);
+  assert.equal(authProvider.captureCalls, 1);
+  assert.equal(captured.status, PaymentStatus.CAPTURED);
+  await assert.rejects(
+    capturePayment(captureAuthorized.id, authProvider),
+    (error) => {
+      assert.equal(authProvider.captureCalls, 1);
+      return error && error.statusCode === 409;
+    }
+  );
+
+  orders.set('sale-cancel-idempotency', { id: 'sale-cancel-idempotency', transactionType: ListingType.SALE });
+  const cancelPaymentRecord = await createPaymentRecord({
+    orderId: 'sale-cancel-idempotency',
+    purpose: PaymentPurpose.SALE,
+    amount: '75.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-cancel-idempotency',
+  });
+  const cancelAuthorized = await authorizePayment(cancelPaymentRecord.id, authProvider);
+  const cancelled = await cancelPayment(cancelAuthorized.id, authProvider);
+  assert.equal(authProvider.cancelCalls, 1);
+  assert.equal(cancelled.status, PaymentStatus.CANCELLED);
+  await assert.rejects(
+    cancelPayment(cancelAuthorized.id, authProvider),
+    (error) => {
+      assert.equal(authProvider.cancelCalls, 1);
+      return error && error.statusCode === 409;
+    }
+  );
+
+  orders.set('sale-refund-idempotency', { id: 'sale-refund-idempotency', transactionType: ListingType.SALE });
+  const refundPaymentRecord = await createPaymentRecord({
+    orderId: 'sale-refund-idempotency',
+    purpose: PaymentPurpose.SALE,
+    amount: '85.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-refund-idempotency',
+  });
+  const refundAuthorized = await authorizePayment(refundPaymentRecord.id, authProvider);
+  const refundCaptured = await capturePayment(refundAuthorized.id, authProvider);
+  const refunded = await refundPayment(refundCaptured.id, authProvider);
+  assert.equal(authProvider.refundCalls, 1);
+  assert.equal(refunded.status, PaymentStatus.REFUNDED);
+  await assert.rejects(
+    refundPayment(refundCaptured.id, authProvider),
+    (error) => {
+      assert.equal(authProvider.refundCalls, 1);
+      return error && error.statusCode === 409;
+    }
+  );
+});
+
+test('rental deposit hold/release/capture idempotency does not repeat provider operations', async () => {
+  clearState();
+
+  const order1 = { id: 'rent-hold-idempotency', transactionType: ListingType.RENT };
+  orders.set('rent-hold-idempotency', order1);
+  const holdPayment = await createPaymentRecord({
+    orderId: 'rent-hold-idempotency',
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '30.00',
+    currency: 'USD',
+    idempotencyKey: 'deposit-hold-idempotency',
+  });
+
+  let authorizeCalls = 0;
+  let cancelCalls = 0;
+  let captureCalls = 0;
+  const provider = {
+    authorize: async (input) => {
+      authorizeCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: `deposit-auth-${input.orderId}`, status: PaymentStatus.AUTHORIZED, metadata: { strategy: 'deposit-authorize' } };
+    },
+    capture: async (input) => {
+      captureCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `deposit-capture-${input.orderId}`, status: PaymentStatus.CAPTURED, metadata: { strategy: 'deposit-capture' } };
+    },
+    cancel: async (input) => {
+      cancelCalls += 1;
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `deposit-cancel-${input.orderId}`, status: PaymentStatus.CANCELLED, metadata: { strategy: 'deposit-cancel' } };
+    },
+    refund: async () => ({ provider: 'mock-provider', providerPaymentId: 'unused-refund', status: PaymentStatus.REFUNDED, metadata: { strategy: 'unused-refund' } }),
+    getStatus: async () => ({ provider: 'mock-provider', providerPaymentId: 'unused-sync', status: PaymentStatus.CAPTURED }),
+  };
+
+  const holdAuthorized = await authorizeRentalDeposit('rent-hold-idempotency', provider);
+  assert.equal(authorizeCalls, 1);
+  assert.equal(holdAuthorized.status, PaymentStatus.AUTHORIZED);
+  const alreadyAuthorized = await authorizeRentalDeposit('rent-hold-idempotency', provider);
+  assert.equal(authorizeCalls, 1);
+  assert.equal(alreadyAuthorized.status, PaymentStatus.AUTHORIZED);
+
+  const order2 = { id: 'rent-release-idempotency', transactionType: ListingType.RENT };
+  orders.set('rent-release-idempotency', order2);
+  const releasePayment = await createPaymentRecord({
+    orderId: 'rent-release-idempotency',
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '35.00',
+    currency: 'USD',
+    idempotencyKey: 'deposit-release-idempotency',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(releasePayment.id, PaymentStatus.AUTHORIZED, {
+    provider: 'mock-provider',
+    providerPaymentId: `deposit-auth-rent-release-idempotency`,
+  });
+  const released = await releaseRentalDeposit('rent-release-idempotency', provider);
+  assert.equal(cancelCalls, 1);
+  assert.equal(released.status, PaymentStatus.CANCELLED);
+  const alreadyReleased = await releaseRentalDeposit('rent-release-idempotency', provider);
+  assert.equal(cancelCalls, 1);
+  assert.equal(alreadyReleased.status, PaymentStatus.CANCELLED);
+
+  const order3 = { id: 'rent-capture-idempotency', transactionType: ListingType.RENT };
+  orders.set('rent-capture-idempotency', order3);
+  const capturePaymentRecord = await createPaymentRecord({
+    orderId: 'rent-capture-idempotency',
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '40.00',
+    currency: 'USD',
+    idempotencyKey: 'deposit-capture-idempotency',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(capturePaymentRecord.id, PaymentStatus.AUTHORIZED, {
+    provider: 'mock-provider',
+    providerPaymentId: `deposit-auth-rent-capture-idempotency`,
+  });
+  const captured = await captureRentalDeposit('rent-capture-idempotency', provider);
+  assert.equal(captureCalls, 1);
+  assert.equal(captured.status, PaymentStatus.CAPTURED);
+  const alreadyCaptured = await captureRentalDeposit('rent-capture-idempotency', provider);
+  assert.equal(captureCalls, 1);
+  assert.equal(alreadyCaptured.status, PaymentStatus.CAPTURED);
+});
+
 test('provider-confirmed operations only transition to allowed states', async () => {
   clearState();
   const payment = await createPaymentRecord({
