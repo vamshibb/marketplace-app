@@ -35,6 +35,12 @@ enum OrderStatus {
   RETURN_PENDING
 }
 
+enum RentalDisputeStatus {
+  OPEN
+  RESOLVED
+  CANCELLED
+}
+
 enum PaymentPurpose {
   SALE
   RENT
@@ -78,6 +84,7 @@ model User {
   sentNotifications        Notification[]            @relation("NotificationSender")
   purchasedOrders          Order[]                   @relation("OrderBuyer")
   soldOrders               Order[]                   @relation("OrderSeller")
+  openedRentalDisputes     RentalDispute[]           @relation("RentalDisputeOpenedBy")
 }
 
 model Category {
@@ -280,10 +287,11 @@ model Order {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  buyer    User      @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
-  seller   User      @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  product  Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  payments Payment[]
+  buyer          User           @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller         User           @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  payments       Payment[]
+  rentalDispute  RentalDispute?
 
   @@index([buyerId])
   @@index([sellerId])
@@ -292,6 +300,23 @@ model Order {
   @@index([buyerId, status])
   @@index([sellerId, status])
   @@index([createdAt(sort: Desc)])
+}
+
+model RentalDispute {
+  id          String              @id @default(cuid())
+  orderId     String              @unique
+  openedById  String
+  reason      String
+  details     String?
+  status      RentalDisputeStatus @default(OPEN)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  order       Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  openedBy    User                @relation("RentalDisputeOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+
+  @@index([openedById])
+  @@index([status])
 }
 
 model Payment {
