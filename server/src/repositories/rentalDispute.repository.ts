@@ -1,4 +1,4 @@
-import { Prisma,RentalDisputeResolution} from "../generated/prisma";
+import { Prisma,RentalDisputeResolution,RentalDisputeStatus} from "../generated/prisma";
 import { prisma } from "../prisma/client";
 
 export const rentalDisputeSelect = {
@@ -53,6 +53,18 @@ export const resolveRentalDispute = (
             status: "RESOLVED",
             resolution,
             resolvedAt,
+        },
+        select: rentalDisputeSelect,
+    });
+};
+
+export const cancelRentalDispute = (
+    id: string
+) => {
+    return prisma.rentalDispute.update({
+        where: { id },
+        data: {
+            status: RentalDisputeStatus.CANCELLED,
         },
         select: rentalDisputeSelect,
     });

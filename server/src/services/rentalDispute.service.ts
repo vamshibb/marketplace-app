@@ -192,3 +192,38 @@ export const getRentalDisputeForOrder = async (
 
     return dispute;
 };
+
+export const cancelRentalDispute = async (
+    orderId: string,
+    userId: string
+) => {
+    const dispute =
+        await rentalDisputeRepository.findRentalDisputeByOrderId(
+            orderId
+        );
+
+    if (!dispute) {
+        throw new AppError(
+            "Rental dispute not found.",
+            404
+        );
+    }
+
+    if (dispute.openedById !== userId) {
+        throw new AppError(
+            "Only the user who opened the dispute can cancel it.",
+            403
+        );
+    }
+
+    if (dispute.status !== RentalDisputeStatus.OPEN) {
+        throw new AppError(
+            "Only open rental disputes can be cancelled.",
+            409
+        );
+    }
+
+    return rentalDisputeRepository.cancelRentalDispute(
+        dispute.id
+    );
+};

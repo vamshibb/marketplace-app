@@ -61,3 +61,26 @@ export const getDispute = async (
         next(error);
     }
 };
+
+export const cancelDispute = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const dispute =
+            await rentalDisputeService.cancelRentalDispute(
+                req.params.orderId,
+                req.user!.id
+            );
+
+        return res.status(200).json(
+            successResponse(
+                dispute,
+                "Rental dispute cancelled successfully"
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};

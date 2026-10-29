@@ -115,4 +115,11 @@ router.get(
   rentalDisputeController.getDispute
 );
 
+router.patch(
+  "/orders/:orderId/dispute/cancel",
+  authMiddleware,
+  validate(orderParamsSchema, "params"),
+  rentalDisputeController.cancelDispute
+);
+
 export default router;
