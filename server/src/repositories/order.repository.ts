@@ -8,6 +8,84 @@ import {
 import { prisma } from "../prisma/client";
 import { normalizeTransactionConflict } from "../utils/transactionConflict";
 
+export const confirmRentalReturnAtomically = async (
+  id: string,
+  sellerId: string
+) => {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const order = await tx.order.findUnique({
+          where: { id },
+          select: orderSelect,
+        });
+
+        if (
+          !order ||
+          order.sellerId !== sellerId ||
+          order.transactionType !== "RENT" ||
+          order.status !== OrderStatus.RETURN_PENDING
+        ) {
+          return { kind: "conflict" as const };
+        }
+
+        const dispute = await tx.rentalDispute.findUnique({
+          where: { orderId: id },
+          select: { status: true },
+        });
+
+        if (dispute?.status === "OPEN") {
+          return { kind: "open-dispute" as const };
+        }
+
+        const updated = await tx.order.update({
+          where: {
+            id,
+            sellerId,
+            transactionType: "RENT",
+            status: OrderStatus.RETURN_PENDING,
+          },
+          data: {
+            status: OrderStatus.COMPLETED,
+          },
+          select: orderSelect,
+        });
+
+        return {
+          kind: "completed" as const,
+          order: updated,
+        };
+      }, {
+        isolationLevel:
+          Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10_000,
+        timeout: 15_000,
+      });
+    } catch (caught) {
+      const error = normalizeTransactionConflict(caught);
+
+      if (
+        error instanceof
+          Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034" &&
+        attempt < 2
+      ) {
+        continue;
+      }
+
+      if (
+        error instanceof
+          Prisma.PrismaClientKnownRequestError &&
+        (error.code === "P2034" ||
+          error.code === "P2025")
+      ) {
+        return { kind: "conflict" as const };
+      }
+
+      throw error;
+    }
+  }
+};
 // Stock and order status commit together. The stock predicate prevents
 // overselling; a failed conditional order update rolls back the decrement.
 export const acceptSaleOrder = async (id: string, sellerId: string) => {

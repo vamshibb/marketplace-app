@@ -12,8 +12,6 @@ import * as authRepository from "../repositories/auth.repository";
 import * as orderRepository from "../repositories/order.repository";
 import * as productRepository from "../repositories/product.repository";
 import * as notificationService from "./notification.service";
-import { RentalDisputeStatus } from "../generated/prisma";
-import * as rentalDisputeRepository from "../repositories/rentalDispute.repository";
 
 type OrderRecord = NonNullable<
   Awaited<
@@ -397,41 +395,51 @@ export const transitionRental = async (
     );
   }
 
-  // An open dispute must be resolved before the seller can
-  // confirm the rental return.
-  if (action === "confirm-return") {
-    const dispute =
-      await rentalDisputeRepository.findRentalDisputeByOrderId(
-        orderId
-      );
-
-    if (dispute?.status === RentalDisputeStatus.OPEN) {
-      throw new AppError(
-        "Resolve the open rental dispute before confirming the return.",
-        409
-      );
-    }
-  }
-
   const actor =
     transition.role === "seller"
       ? { sellerId: userId }
       : { buyerId: userId };
 
-  const updated =
-    await orderRepository.updateOrderStatus(
-      orderId,
-      transition.to,
-      transition.from,
-      actor,
-      "RENT"
-    );
+  let updated;
 
-  if (!updated) {
-    throw new AppError(
-      "Order changed concurrently. Please refresh and try again.",
-      409
-    );
+  if (action === "confirm-return") {
+    const result =
+      await orderRepository.confirmRentalReturnAtomically(
+        orderId,
+        userId
+      );
+
+    if (result.kind === "open-dispute") {
+      throw new AppError(
+        "Resolve the open rental dispute before confirming the return.",
+        409
+      );
+    }
+
+    if (result.kind === "conflict") {
+      throw new AppError(
+        "Rental state changed concurrently. Please refresh and try again.",
+        409
+      );
+    }
+
+    updated = result.order;
+  } else {
+    updated =
+      await orderRepository.updateOrderStatus(
+        orderId,
+        transition.to,
+        transition.from,
+        actor,
+        "RENT"
+      );
+
+    if (!updated) {
+      throw new AppError(
+        "Order changed concurrently. Please refresh and try again.",
+        409
+      );
+    }
   }
 
   if (action === "confirm-return") {

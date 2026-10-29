@@ -25,11 +25,19 @@ let existingDispute = null;
 let createdDispute = null;
 let createError = null;
 let disputeById = null;
-let resolvedDispute = null;
-let resolveCalls = 0;
+
+let claimCalls = 0;
+let finalizeCalls = 0;
+let reopenCalls = 0;
+let cancelCalls = 0;
+
 let releaseCalls = 0;
 let captureCalls = 0;
 let depositError = null;
+
+let forceClaimConflict = false;
+let forceCancelConflict = false;
+let duringDeposit = null;
 
 const orderRepositoryModule = new Module(orderRepositoryId);
 orderRepositoryModule.filename = orderRepositoryId;
@@ -50,39 +58,209 @@ rentalDisputeRepositoryModule.filename =
 rentalDisputeRepositoryModule.loaded = true;
 
 rentalDisputeRepositoryModule.exports = {
-  findRentalDisputeByOrderId: async () => existingDispute,
+  findRentalDisputeByOrderId: async (orderId) => {
+    if (
+      existingDispute &&
+      existingDispute.orderId === orderId
+    ) {
+      return existingDispute;
+    }
 
-  createRentalDispute: async (data) => {
+    if (
+      disputeById &&
+      disputeById.orderId === orderId
+    ) {
+      return disputeById;
+    }
+
+    return null;
+  },
+
+  openRentalDisputeAtomically: async ({
+    orderId,
+    openedById,
+    reason,
+    details,
+  }) => {
     if (createError) {
+      if (
+        createError instanceof
+          Prisma.PrismaClientKnownRequestError &&
+        createError.code === "P2002"
+      ) {
+        return {
+          kind: "existing",
+        };
+      }
+
       throw createError;
     }
 
+    const order = orders.get(orderId);
+
+    if (!order) {
+      return {
+        kind: "not-found",
+      };
+    }
+
+    if (order.transactionType !== "RENT") {
+      return {
+        kind: "not-rental",
+      };
+    }
+
+    if (order.status !== OrderStatus.RETURN_PENDING) {
+      return {
+        kind: "wrong-status",
+      };
+    }
+
+    if (
+      order.buyerId !== openedById &&
+      order.sellerId !== openedById
+    ) {
+      return {
+        kind: "forbidden",
+      };
+    }
+
+    if (existingDispute) {
+      return {
+        kind: "existing",
+        dispute: existingDispute,
+      };
+    }
+
     createdDispute = {
-      id: 'dispute-1',
-      ...data,
-      createdAt: new Date('2026-10-28T00:00:00.000Z'),
-      updatedAt: new Date('2026-10-28T00:00:00.000Z'),
+      id: "dispute-1",
+      orderId,
+      openedById,
+      reason,
+      details,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
     };
 
-    return createdDispute;
+    existingDispute = createdDispute;
+    disputeById = createdDispute;
+
+    return {
+      kind: "opened",
+      dispute: createdDispute,
+    };
   },
-  findRentalDisputeById: async () => disputeById,
 
-resolveRentalDispute: async (id, resolution, resolvedAt) => {
-  resolveCalls += 1;
+  findRentalDisputeById: async () =>
+    disputeById,
 
-  resolvedDispute = {
-    ...disputeById,
+  claimRentalDisputeForResolution: async (
+    id
+  ) => {
+    claimCalls += 1;
+
+    if (forceClaimConflict) {
+      return null;
+    }
+
+    if (
+      !disputeById ||
+      disputeById.id !== id ||
+      disputeById.status !== RentalDisputeStatus.OPEN
+    ) {
+      return null;
+    }
+
+    disputeById = {
+      ...disputeById,
+      status: RentalDisputeStatus.RESOLVING,
+    };
+
+    existingDispute = disputeById;
+
+    return disputeById;
+  },
+
+  finalizeRentalDisputeResolution: async (
     id,
-    status: RentalDisputeStatus.RESOLVED,
     resolution,
-    resolvedAt,
-  };
+    resolvedAt
+  ) => {
+    finalizeCalls += 1;
 
-  disputeById = resolvedDispute;
+    if (
+      !disputeById ||
+      disputeById.id !== id ||
+      disputeById.status !==
+        RentalDisputeStatus.RESOLVING
+    ) {
+      return null;
+    }
 
-  return resolvedDispute;
-},
+    disputeById = {
+      ...disputeById,
+      status: RentalDisputeStatus.RESOLVED,
+      resolution,
+      resolvedAt,
+    };
+
+    existingDispute = disputeById;
+
+    return disputeById;
+  },
+
+  reopenRentalDisputeAfterResolutionFailure:
+    async (id) => {
+      reopenCalls += 1;
+
+      if (
+        !disputeById ||
+        disputeById.id !== id ||
+        disputeById.status !==
+          RentalDisputeStatus.RESOLVING
+      ) {
+        return null;
+      }
+
+      disputeById = {
+        ...disputeById,
+        status: RentalDisputeStatus.OPEN,
+      };
+
+      existingDispute = disputeById;
+
+      return disputeById;
+    },
+
+  cancelRentalDispute: async (
+    id,
+    openedById
+  ) => {
+    cancelCalls += 1;
+
+    if (forceCancelConflict) {
+      return null;
+    }
+
+    if (
+      !disputeById ||
+      disputeById.id !== id ||
+      disputeById.openedById !== openedById ||
+      disputeById.status !== RentalDisputeStatus.OPEN
+    ) {
+      return null;
+    }
+
+    disputeById = {
+      ...disputeById,
+      status: RentalDisputeStatus.CANCELLED,
+    };
+
+    existingDispute = disputeById;
+
+    return disputeById;
+  },
 };
 
 
@@ -100,7 +278,11 @@ paymentServiceModule.loaded = true;
 paymentServiceModule.exports = {
   releaseRentalDeposit: async () => {
     releaseCalls += 1;
-
+    if (duringDeposit) {
+      const callback = duringDeposit;
+      duringDeposit = null;
+      await callback();
+    }
     if (depositError) {
       throw depositError;
     }
@@ -113,6 +295,11 @@ paymentServiceModule.exports = {
 
   captureRentalDeposit: async () => {
     captureCalls += 1;
+    if (duringDeposit) {
+      const callback = duringDeposit;
+      duringDeposit = null;
+      await callback();
+    }
 
     if (depositError) {
       throw depositError;
@@ -129,6 +316,7 @@ require.cache[paymentServiceId] = paymentServiceModule;
 const {
   openRentalDispute,
   resolveRentalDispute,
+   cancelRentalDispute,
 } = require('../src/services/rentalDispute.service.ts');
 
 beforeEach(() => {
@@ -137,15 +325,20 @@ beforeEach(() => {
   existingDispute = null;
   createdDispute = null;
   createError = null;
-
   disputeById = null;
-  resolvedDispute = null;
 
-  resolveCalls = 0;
+  claimCalls = 0;
+  finalizeCalls = 0;
+  reopenCalls = 0;
+  cancelCalls = 0;
+
   releaseCalls = 0;
   captureCalls = 0;
-
   depositError = null;
+
+  forceClaimConflict = false;
+  forceCancelConflict = false;
+  duringDeposit = null;
 });
 
 const createRentalOrder = ({
@@ -355,144 +548,404 @@ test('concurrent duplicate dispute creation returns clean 409', async () => {
   );
 });
 
-test('RELEASE_DEPOSIT releases the deposit before resolving the dispute', async () => {
-  const order = createRentalOrder();
-  orders.set(order.id, order);
+  "RELEASE_DEPOSIT claims the dispute, releases the deposit, then resolves it",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
 
-  disputeById = {
-    id: 'dispute-release',
-    orderId: order.id,
-    openedById: 'buyer-1',
-    reason: 'No damage',
-    details: null,
-    status: RentalDisputeStatus.OPEN,
-    resolution: null,
-    resolvedAt: null,
+    disputeById = {
+      id: "dispute-release",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "No damage",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
+
+    existingDispute = disputeById;
+
+    const result = await resolveRentalDispute(
+      disputeById.id,
+      RentalDisputeResolution.RELEASE_DEPOSIT,
+      {}
+    );
+
+    assert.equal(claimCalls, 1);
+    assert.equal(releaseCalls, 1);
+    assert.equal(captureCalls, 0);
+    assert.equal(finalizeCalls, 1);
+    assert.equal(reopenCalls, 0);
+
+    assert.equal(
+      result.status,
+      RentalDisputeStatus.RESOLVED
+    );
+
+    assert.equal(
+      result.resolution,
+      RentalDisputeResolution.RELEASE_DEPOSIT
+    );
+
+    assert.ok(result.resolvedAt);
+
+    assert.equal(
+      order.status,
+      OrderStatus.RETURN_PENDING
+    );
   };
 
-  const result = await resolveRentalDispute(
-    disputeById.id,
-    RentalDisputeResolution.RELEASE_DEPOSIT,
-    {}
-  );
+  test(
+  "RELEASE_DEPOSIT claims the dispute, releases the deposit, then resolves it",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
 
-  assert.equal(releaseCalls, 1);
-  assert.equal(captureCalls, 0);
-  assert.equal(resolveCalls, 1);
+    disputeById = {
+      id: "dispute-release",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "No damage",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
 
-  assert.equal(
-    result.status,
-    RentalDisputeStatus.RESOLVED
-  );
+    existingDispute = disputeById;
 
-  assert.equal(
-    result.resolution,
-    RentalDisputeResolution.RELEASE_DEPOSIT
-  );
+    const result = await resolveRentalDispute(
+      disputeById.id,
+      RentalDisputeResolution.RELEASE_DEPOSIT,
+      {}
+    );
 
-  assert.ok(result.resolvedAt);
+    assert.equal(claimCalls, 1);
+    assert.equal(releaseCalls, 1);
+    assert.equal(captureCalls, 0);
+    assert.equal(finalizeCalls, 1);
+    assert.equal(reopenCalls, 0);
 
-  assert.equal(
-    order.status,
-    OrderStatus.RETURN_PENDING
-  );
-});
+    assert.equal(
+      result.status,
+      RentalDisputeStatus.RESOLVED
+    );
 
-test('CAPTURE_DEPOSIT captures the deposit before resolving the dispute', async () => {
-  const order = createRentalOrder();
-  orders.set(order.id, order);
+    assert.equal(
+      result.resolution,
+      RentalDisputeResolution.RELEASE_DEPOSIT
+    );
 
-  disputeById = {
-    id: 'dispute-capture',
-    orderId: order.id,
-    openedById: 'seller-1',
-    reason: 'Returned damaged',
-    details: null,
-    status: RentalDisputeStatus.OPEN,
-    resolution: null,
-    resolvedAt: null,
-  };
+    assert.ok(result.resolvedAt);
 
-  const result = await resolveRentalDispute(
-    disputeById.id,
-    RentalDisputeResolution.CAPTURE_DEPOSIT,
-    {}
-  );
+    assert.equal(
+      order.status,
+      OrderStatus.RETURN_PENDING
+    );
+  }
+);
 
-  assert.equal(captureCalls, 1);
-  assert.equal(releaseCalls, 0);
-  assert.equal(resolveCalls, 1);
+test(
+  "CAPTURE_DEPOSIT claims the dispute, captures the deposit, then resolves it",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
 
-  assert.equal(
-    result.status,
-    RentalDisputeStatus.RESOLVED
-  );
+    disputeById = {
+      id: "dispute-capture",
+      orderId: order.id,
+      openedById: "seller-1",
+      reason: "Returned damaged",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
 
-  assert.equal(
-    result.resolution,
-    RentalDisputeResolution.CAPTURE_DEPOSIT
-  );
-});
+    existingDispute = disputeById;
 
-test('deposit failure leaves the dispute OPEN', async () => {
-  const order = createRentalOrder();
-  orders.set(order.id, order);
-
-  disputeById = {
-    id: 'dispute-provider-failure',
-    orderId: order.id,
-    openedById: 'seller-1',
-    reason: 'Damage',
-    details: null,
-    status: RentalDisputeStatus.OPEN,
-    resolution: null,
-    resolvedAt: null,
-  };
-
-  depositError = new Error('Provider failed');
-
-  await assert.rejects(
-    resolveRentalDispute(
+    const result = await resolveRentalDispute(
       disputeById.id,
       RentalDisputeResolution.CAPTURE_DEPOSIT,
       {}
-    ),
-    /Provider failed/
-  );
+    );
 
-  assert.equal(captureCalls, 1);
-  assert.equal(resolveCalls, 0);
-  assert.equal(
-    disputeById.status,
-    RentalDisputeStatus.OPEN
-  );
-});
+    assert.equal(claimCalls, 1);
+    assert.equal(captureCalls, 1);
+    assert.equal(releaseCalls, 0);
+    assert.equal(finalizeCalls, 1);
+    assert.equal(reopenCalls, 0);
 
-test('resolved disputes cannot be resolved again', async () => {
-  const order = createRentalOrder();
-  orders.set(order.id, order);
+    assert.equal(
+      result.status,
+      RentalDisputeStatus.RESOLVED
+    );
 
-  disputeById = {
-    id: 'dispute-already-resolved',
-    orderId: order.id,
-    openedById: 'buyer-1',
-    reason: 'Resolved',
-    details: null,
-    status: RentalDisputeStatus.RESOLVED,
-    resolution: RentalDisputeResolution.RELEASE_DEPOSIT,
-    resolvedAt: new Date(),
-  };
+    assert.equal(
+      result.resolution,
+      RentalDisputeResolution.CAPTURE_DEPOSIT
+    );
+  }
+);
 
-  await assert.rejects(
-    resolveRentalDispute(
+test(
+  "deposit failure reopens the dispute for retry",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
+
+    disputeById = {
+      id: "dispute-provider-failure",
+      orderId: order.id,
+      openedById: "seller-1",
+      reason: "Damage",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
+
+    existingDispute = disputeById;
+
+    depositError = new Error(
+      "Provider failed"
+    );
+
+    await assert.rejects(
+      resolveRentalDispute(
+        disputeById.id,
+        RentalDisputeResolution.CAPTURE_DEPOSIT,
+        {}
+      ),
+      /Provider failed/
+    );
+
+    assert.equal(claimCalls, 1);
+    assert.equal(captureCalls, 1);
+    assert.equal(finalizeCalls, 0);
+    assert.equal(reopenCalls, 1);
+
+    assert.equal(
+      disputeById.status,
+      RentalDisputeStatus.OPEN
+    );
+  }
+);
+
+test(
+  "resolved disputes cannot be resolved again",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
+
+    disputeById = {
+      id: "dispute-already-resolved",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "Resolved",
+      details: null,
+      status: RentalDisputeStatus.RESOLVED,
+      resolution:
+        RentalDisputeResolution.RELEASE_DEPOSIT,
+      resolvedAt: new Date(),
+    };
+
+    existingDispute = disputeById;
+
+    await assert.rejects(
+      resolveRentalDispute(
+        disputeById.id,
+        RentalDisputeResolution.CAPTURE_DEPOSIT,
+        {}
+      ),
+      (error) =>
+        error &&
+        error.statusCode === 409
+    );
+
+    assert.equal(claimCalls, 0);
+    assert.equal(releaseCalls, 0);
+    assert.equal(captureCalls, 0);
+    assert.equal(finalizeCalls, 0);
+  }
+);
+
+test(
+  "resolve returns 409 when another operation wins before the atomic claim",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
+
+    disputeById = {
+      id: "dispute-claim-race",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "Damage",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
+
+    existingDispute = disputeById;
+    forceClaimConflict = true;
+
+    await assert.rejects(
+      resolveRentalDispute(
+        disputeById.id,
+        RentalDisputeResolution.CAPTURE_DEPOSIT,
+        {}
+      ),
+      (error) =>
+        error &&
+        error.statusCode === 409
+    );
+
+    assert.equal(claimCalls, 1);
+    assert.equal(captureCalls, 0);
+    assert.equal(releaseCalls, 0);
+    assert.equal(finalizeCalls, 0);
+  }
+);
+
+test(
+  "cancelled dispute cannot be resolved",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
+
+    disputeById = {
+      id: "dispute-cancel-first",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "Changed my mind",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
+
+    existingDispute = disputeById;
+
+    const cancelled =
+      await cancelRentalDispute(
+        order.id,
+        "buyer-1"
+      );
+
+    assert.equal(
+      cancelled.status,
+      RentalDisputeStatus.CANCELLED
+    );
+
+    assert.equal(cancelCalls, 1);
+
+    await assert.rejects(
+      resolveRentalDispute(
+        disputeById.id,
+        RentalDisputeResolution.RELEASE_DEPOSIT,
+        {}
+      ),
+      (error) =>
+        error &&
+        error.statusCode === 409
+    );
+
+    assert.equal(claimCalls, 0);
+    assert.equal(releaseCalls, 0);
+    assert.equal(captureCalls, 0);
+  }
+);
+
+test(
+  "cancel cannot win after resolution has claimed the dispute",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
+
+    disputeById = {
+      id: "dispute-resolve-first",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "Possible damage",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
+
+    existingDispute = disputeById;
+
+    duringDeposit = async () => {
+      await assert.rejects(
+        cancelRentalDispute(
+          order.id,
+          "buyer-1"
+        ),
+        (error) =>
+          error &&
+          error.statusCode === 409
+      );
+    };
+
+    const result = await resolveRentalDispute(
       disputeById.id,
-      RentalDisputeResolution.CAPTURE_DEPOSIT,
+      RentalDisputeResolution.RELEASE_DEPOSIT,
       {}
-    ),
-    (error) => error && error.statusCode === 409
-  );
+    );
 
-  assert.equal(releaseCalls, 0);
-  assert.equal(captureCalls, 0);
-  assert.equal(resolveCalls, 0);
-});
+    assert.equal(claimCalls, 1);
+    assert.equal(releaseCalls, 1);
+
+    assert.equal(
+      result.status,
+      RentalDisputeStatus.RESOLVED
+    );
+
+    assert.equal(finalizeCalls, 1);
+
+    // Service rejects cancellation while state is RESOLVING,
+    // so the repository cancel mutation is never reached.
+    assert.equal(cancelCalls, 0);
+  }
+);
+
+test(
+  "cancel returns 409 when dispute state changes before atomic cancellation",
+  async () => {
+    const order = createRentalOrder();
+    orders.set(order.id, order);
+
+    disputeById = {
+      id: "dispute-cancel-race",
+      orderId: order.id,
+      openedById: "buyer-1",
+      reason: "Issue",
+      details: null,
+      status: RentalDisputeStatus.OPEN,
+      resolution: null,
+      resolvedAt: null,
+    };
+
+    existingDispute = disputeById;
+    forceCancelConflict = true;
+
+    await assert.rejects(
+      cancelRentalDispute(
+        order.id,
+        "buyer-1"
+      ),
+      (error) =>
+        error &&
+        error.statusCode === 409
+    );
+
+    assert.equal(cancelCalls, 1);
+
+    assert.equal(
+      disputeById.status,
+      RentalDisputeStatus.OPEN
+    );
+  }
+);

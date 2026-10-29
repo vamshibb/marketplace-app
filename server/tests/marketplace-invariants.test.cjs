@@ -2,6 +2,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { prisma, fixtures, raceTransactions } = require('./helpers/database.cjs');
 const orders = require('../src/services/order.service.ts');
+const rentalDisputes = require('../src/services/rentalDispute.service.ts');
 const products = require('../src/services/product.service.ts');
 const blocks = require('../src/services/availabilityBlock.service.ts');
 const { getProductAvailability } = require('../src/services/availability.service.ts');
@@ -310,3 +311,94 @@ test('rental lifecycle enforces accepted -> active -> return_pending -> complete
     { productId: p.id, reason: 'RENTAL_COMPLETED' },
   ]);
 });
+
+test(
+  'opening a dispute racing confirm-return allows exactly one path to win',
+  async () => {
+    const p = await f.product('RENT', 1);
+
+    const request = {
+      quantity: 1,
+      requestedFrom: new Date(`${window.from}T00:00:00Z`),
+      requestedTo: new Date(`${window.to}T00:00:00Z`),
+    };
+
+    const order = await orders.createOrder(
+      p.id,
+      f.buyer.id,
+      request
+    );
+
+    await orders.acceptOrder(
+      order.id,
+      f.seller.id
+    );
+
+    await orders.transitionRental(
+      order.id,
+      f.seller.id,
+      'start'
+    );
+
+    await orders.transitionRental(
+      order.id,
+      f.buyer.id,
+      'return'
+    );
+
+    assert.equal(
+      await status(order.id),
+      'RETURN_PENDING'
+    );
+
+    const results = await raceTransactions(
+      () =>
+        rentalDisputes.openRentalDispute(
+          order.id,
+          f.buyer.id,
+          'Return condition needs review'
+        ),
+      () =>
+        orders.transitionRental(
+          order.id,
+          f.seller.id,
+          'confirm-return'
+        )
+    );
+
+    oneWinner(results);
+
+    const finalOrder =
+      await prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
+      });
+
+    const dispute =
+      await prisma.rentalDispute.findUnique({
+        where: { orderId: order.id },
+      });
+
+    if (finalOrder.status === 'COMPLETED') {
+      assert.equal(
+        dispute,
+        null,
+        'completed rental must not also have a dispute'
+      );
+    } else {
+      assert.equal(
+        finalOrder.status,
+        'RETURN_PENDING'
+      );
+
+      assert.ok(
+        dispute,
+        'return-pending rental should have the winning dispute'
+      );
+
+      assert.equal(
+        dispute.status,
+        'OPEN'
+      );
+    }
+  }
+);

@@ -19,48 +19,6 @@ export const openRentalDispute = async (
     reason: string,
     details?: string
 ) => {
-    const order = await orderRepository.findOrderById(orderId);
-
-    if (!order) {
-        throw new AppError("Order not found", 404);
-    }
-
-    if (order.transactionType !== "RENT") {
-        throw new AppError(
-            "Only rental orders can have disputes opened.",
-            409
-        );
-    }
-
-    if (order.status !== OrderStatus.RETURN_PENDING) {
-        throw new AppError(
-            "Only return-pending rental orders can have disputes opened.",
-            409
-        );
-    }
-
-    if (
-        order.buyerId !== userId &&
-        order.sellerId !== userId
-    ) {
-        throw new AppError(
-            "You are not authorized to perform this action.",
-            403
-        );
-    }
-
-    const existing =
-        await rentalDisputeRepository.findRentalDisputeByOrderId(
-            orderId
-        );
-
-    if (existing) {
-        throw new AppError(
-            "A dispute already exists for this order.",
-            409
-        );
-    }
-
     if (!reason || !reason.trim()) {
         throw new AppError(
             "Dispute reason is required.",
@@ -68,26 +26,53 @@ export const openRentalDispute = async (
         );
     }
 
-    try {
-        return await rentalDisputeRepository.createRentalDispute({
+    const result =
+        await rentalDisputeRepository.openRentalDisputeAtomically({
             orderId,
             openedById: userId,
             reason: reason.trim(),
             details: details?.trim() || null,
-            status: RentalDisputeStatus.OPEN,
         });
-    } catch (error) {
-        if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-        ) {
+
+    switch (result.kind) {
+        case "opened":
+            return result.dispute;
+
+        case "not-found":
+            throw new AppError(
+                "Order not found",
+                404
+            );
+
+        case "not-rental":
+            throw new AppError(
+                "Only rental orders can have disputes opened.",
+                409
+            );
+
+        case "wrong-status":
+            throw new AppError(
+                "Only return-pending rental orders can have disputes opened.",
+                409
+            );
+
+        case "forbidden":
+            throw new AppError(
+                "You are not authorized to perform this action.",
+                403
+            );
+
+        case "existing":
             throw new AppError(
                 "A dispute already exists for this order.",
                 409
             );
-        }
 
-        throw error;
+        case "conflict":
+            throw new AppError(
+                "Rental dispute state changed concurrently. Please refresh and try again.",
+                409
+            );
     }
 };
 
@@ -102,7 +87,10 @@ export const resolveRentalDispute = async (
         );
 
     if (!dispute) {
-        throw new AppError("Rental dispute not found.", 404);
+        throw new AppError(
+            "Rental dispute not found.",
+            404
+        );
     }
 
     if (dispute.status !== RentalDisputeStatus.OPEN) {
@@ -112,12 +100,16 @@ export const resolveRentalDispute = async (
         );
     }
 
-    const order = await orderRepository.findOrderById(
-        dispute.orderId
-    );
+    const order =
+        await orderRepository.findOrderById(
+            dispute.orderId
+        );
 
     if (!order) {
-        throw new AppError("Order not found", 404);
+        throw new AppError(
+            "Order not found",
+            404
+        );
     }
 
     if (order.transactionType !== "RENT") {
@@ -127,32 +119,66 @@ export const resolveRentalDispute = async (
         );
     }
 
-    if (
-        resolution === RentalDisputeResolution.RELEASE_DEPOSIT
-    ) {
-        await releaseRentalDeposit(
-            dispute.orderId,
-            paymentProvider
+    const claimed =
+        await rentalDisputeRepository.claimRentalDisputeForResolution(
+            dispute.id
         );
-    } else if (
-        resolution === RentalDisputeResolution.CAPTURE_DEPOSIT
-    ) {
-        await captureRentalDeposit(
-            dispute.orderId,
-            paymentProvider
-        );
-    } else {
+
+    if (!claimed) {
         throw new AppError(
-            "Unsupported rental dispute resolution.",
-            400
+            "Rental dispute state changed concurrently. Please refresh and try again.",
+            409
         );
     }
 
-    return rentalDisputeRepository.resolveRentalDispute(
-        dispute.id,
-        resolution,
-        new Date()
-    );
+    try {
+        if (
+            resolution ===
+            RentalDisputeResolution.RELEASE_DEPOSIT
+        ) {
+            await releaseRentalDeposit(
+                dispute.orderId,
+                paymentProvider
+            );
+        } else if (
+            resolution ===
+            RentalDisputeResolution.CAPTURE_DEPOSIT
+        ) {
+            await captureRentalDeposit(
+                dispute.orderId,
+                paymentProvider
+            );
+        } else {
+            throw new AppError(
+                "Unsupported rental dispute resolution.",
+                400
+            );
+        }
+    } catch (error) {
+        await rentalDisputeRepository
+            .reopenRentalDisputeAfterResolutionFailure(
+                dispute.id
+            );
+
+        throw error;
+    }
+
+    const resolved =
+        await rentalDisputeRepository
+            .finalizeRentalDisputeResolution(
+                dispute.id,
+                resolution,
+                new Date()
+            );
+
+    if (!resolved) {
+        throw new AppError(
+            "Rental dispute state changed while finalizing resolution.",
+            409
+        );
+    }
+
+    return resolved;
 };
 export const getRentalDisputeForOrder = async (
     orderId: string,
@@ -198,9 +224,10 @@ export const cancelRentalDispute = async (
     userId: string
 ) => {
     const dispute =
-        await rentalDisputeRepository.findRentalDisputeByOrderId(
-            orderId
-        );
+        await rentalDisputeRepository
+            .findRentalDisputeByOrderId(
+                orderId
+            );
 
     if (!dispute) {
         throw new AppError(
@@ -223,7 +250,18 @@ export const cancelRentalDispute = async (
         );
     }
 
-    return rentalDisputeRepository.cancelRentalDispute(
-        dispute.id
-    );
+    const cancelled =
+        await rentalDisputeRepository.cancelRentalDispute(
+            dispute.id,
+            userId
+        );
+
+    if (!cancelled) {
+        throw new AppError(
+            "Rental dispute state changed concurrently. Please refresh and try again.",
+            409
+        );
+    }
+
+    return cancelled;
 };

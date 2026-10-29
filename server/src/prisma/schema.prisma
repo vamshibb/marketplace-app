@@ -37,6 +37,7 @@ enum OrderStatus {
 
 enum RentalDisputeStatus {
   OPEN
+  RESOLVING
   RESOLVED
   CANCELLED
 }
