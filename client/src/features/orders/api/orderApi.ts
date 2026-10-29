@@ -2,6 +2,19 @@ import { api } from "../../../shared/api/axios";
 import type { ApiResponse } from "../../../shared/types/api";
 import type { OrderRequestValues } from "../schemas/orderRequestSchema";
 
+export type RentalDispute = {
+  id: string;
+  orderId: string;
+  openedById: string;
+  reason: string;
+  details: string | null;
+  status: "OPEN" | "RESOLVED" | "CANCELLED";
+  resolution: "RELEASE_DEPOSIT" | "CAPTURE_DEPOSIT" | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const createOrder = async (productId: string, { quantity, notes, requestedFrom, requestedTo }: OrderRequestValues): Promise<Order> => {
   const response = await api.post<ApiResponse<Order>>(`/orders/products/${encodeURIComponent(productId)}`, {
     quantity, notes,
@@ -46,6 +59,44 @@ export const authorizeOrderPayment = async (orderId: string): Promise<{
     status: string;
     createdAt: string;
     updatedAt: string;
-  }>>(`/orders/${encodeURIComponent(orderId)}/payments/authorize`, { orderId });
+  }>>(`/orders/${encodeURIComponent(orderId)}/payments/authorize`);
+  return response.data.data;
+};
+
+export const openRentalDispute = async (
+  orderId: string,
+  reason: string,
+  details?: string
+): Promise<RentalDispute> => {
+  const response = await api.post<ApiResponse<RentalDispute>>(
+    `/orders/${encodeURIComponent(orderId)}/dispute`,
+    {
+      reason,
+      ...(details?.trim() ? { details: details.trim() } : {}),
+    }
+  );
+
+  return response.data.data;
+};
+
+export const getRentalDispute = async (
+  orderId: string,
+  signal?: AbortSignal
+): Promise<RentalDispute> => {
+  const response = await api.get<ApiResponse<RentalDispute>>(
+    `/orders/${encodeURIComponent(orderId)}/dispute`,
+    { signal }
+  );
+
+  return response.data.data;
+};
+
+export const cancelRentalDispute = async (
+  orderId: string
+): Promise<RentalDispute> => {
+  const response = await api.patch<ApiResponse<RentalDispute>>(
+    `/orders/${encodeURIComponent(orderId)}/dispute/cancel`
+  );
+
   return response.data.data;
 };

@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { Button } from "../../../shared/ui/Button";
 import { useOrderActionMutation } from "../hooks/useOrderActionMutation";
 import type { Order, OrderAction, OrderRole } from "../types";
+import { useRentalDisputeQuery } from "../hooks/useRentalDispute";
 
 const labels: Record<OrderAction, string> = {
   accept: "Accept", reject: "Reject", cancel: "Cancel", complete: "Complete",
@@ -12,6 +13,16 @@ export const OrderActions = ({ order, role }: { order: Order; role: OrderRole })
   const mutation = useOrderActionMutation(order.id);
   const submitting = useRef(false);
   const isRental = order.transactionType === "RENT";
+  const shouldCheckDispute =
+    isRental && order.status === "RETURN_PENDING";
+
+  const disputeQuery = useRentalDisputeQuery(
+    order.id,
+    shouldCheckDispute
+  );
+
+  const hasOpenDispute =
+  disputeQuery.data?.status === "OPEN";
   const actions: OrderAction[] = [];
   if (order.status === "PENDING") {
     actions.push(...(role === "buyer" ? ["cancel"] as const : ["accept", "reject"] as const));
@@ -20,7 +31,14 @@ export const OrderActions = ({ order, role }: { order: Order; role: OrderRole })
     if (isRental && order.status === "ACTIVE") actions.push("return");
   } else if (isRental) {
     if (order.status === "ACCEPTED") actions.push("start");
-    if (order.status === "RETURN_PENDING") actions.push("confirm-return");
+    if (
+      order.status === "RETURN_PENDING" &&
+      !disputeQuery.isLoading &&
+      !disputeQuery.isError &&
+      !hasOpenDispute
+    ) {
+  actions.push("confirm-return");
+}
   }
 
   const act = async (action: OrderAction) => {

@@ -8,6 +8,7 @@ import type { Order, OrderRole } from "../types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { OrderActions } from "./OrderActions";
 import { rentalDuration } from "../utils/rentalDuration";
+import { RentalDisputeSection } from "./RentalDisputeSection";
 
 export const OrderCard = ({ order, role, selected = false, onReputationToggle }: { order: Order; role: OrderRole; selected?: boolean; onReputationToggle: (open: boolean) => void }) => {
   const counterpart = role === "buyer" ? order.seller : order.buyer;
@@ -93,6 +94,7 @@ export const OrderCard = ({ order, role, selected = false, onReputationToggle }:
           <p className="whitespace-pre-wrap wrap-anywhere text-slate-600">{order.notes}</p>
         </div>
       )}
+      <RentalDisputeSection order={order} />
       <OrderActions order={order} role={role} />
       {order.status === "COMPLETED" && <OrderReviews orderId={order.id} role={role} completed />}
     </article>
