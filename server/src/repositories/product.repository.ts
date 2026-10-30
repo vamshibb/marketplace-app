@@ -163,8 +163,29 @@ export const updateProductAtomically = async (
         const pending = converting ? await tx.order.findFirst({
           where: { productId: id, transactionType: "RENT", status: "PENDING" }, select: { id: true },
         }) : null;
-        validate({ product, reservations, blocks, hasPendingRental: Boolean(pending) });
-        return tx.product.update({ where: { id }, data });
+        validate({
+          product,
+          reservations,
+          blocks,
+          hasPendingRental: Boolean(pending),
+        });
+
+        const effectiveListingType =
+          data.listingType ?? product?.listingType;
+
+        const updateData:
+          Prisma.ProductUncheckedUpdateInput =
+          effectiveListingType === "SALE"
+            ? {
+              ...data,
+              rentalDepositUnitAmount: null,
+            }
+            : data;
+
+        return tx.product.update({
+          where: { id },
+          data: updateData,
+        });
       }, {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         maxWait: 10_000,

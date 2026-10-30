@@ -121,6 +121,9 @@ model Product {
   title       String
   description String
   price       Float
+
+  currency                String   @default("CAD")
+  rentalDepositUnitAmount Decimal? @db.Decimal(10, 2)
   listingType ListingType @default(SALE)
   quantityAvailable Int @default(1)
   minRentalDays Int?
@@ -278,26 +281,37 @@ model Notification {
 model Order {
   productReview Review?
   userReviews   UserReview[]
-  id            String      @id @default(cuid())
-  buyerId       String
-  sellerId      String
-  productId     String
-  quantity      Int         @default(1)
-  unitPrice     Decimal     @db.Decimal(10, 2)
+
+  id        String @id @default(cuid())
+  buyerId   String
+  sellerId  String
+  productId String
+
+  quantity  Int     @default(1)
+  unitPrice Decimal @db.Decimal(10, 2)
+
+  // Immutable financial snapshot captured when the order is created.
+  currency            String  @default("CAD")
+  subtotal            Decimal @db.Decimal(10, 2)
+  rentalDays          Int?
+  rentalDepositAmount Decimal? @db.Decimal(10, 2)
+
   transactionType ListingType @default(SALE)
-  productTitle  String
-  status        OrderStatus @default(PENDING)
+  productTitle    String
+  status          OrderStatus @default(PENDING)
+
   requestedFrom DateTime?
   requestedTo   DateTime?
   notes         String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
 
-  buyer          User           @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
-  seller         User           @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  product        Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
-  payments       Payment[]
-  rentalDispute  RentalDispute?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer         User           @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller        User           @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  payments      Payment[]
+  rentalDispute RentalDispute?
 
   @@index([buyerId])
   @@index([sellerId])

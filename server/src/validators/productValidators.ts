@@ -6,11 +6,31 @@ const productFields =
     description: z.string().min(5),
     price: z.coerce.number().positive(),
 
+    rentalDepositUnitAmount:
+      z.coerce
+        .number()
+        .nonnegative()
+        .nullable()
+        .optional(),
+
     categoryId: z.string().optional(),
     listingType: z.enum(["SALE", "RENT"]).optional(),
-    quantityAvailable: z.coerce.number().int().min(1).optional(),
-    minRentalDays: z.coerce.number().int().min(1).nullable().optional(),
-    maxRentalDays: z.coerce.number().int().min(1).nullable().optional(),
+    quantityAvailable:
+      z.coerce.number().int().min(1).optional(),
+    minRentalDays:
+      z.coerce
+        .number()
+        .int()
+        .min(1)
+        .nullable()
+        .optional(),
+    maxRentalDays:
+      z.coerce
+        .number()
+        .int()
+        .min(1)
+        .nullable()
+        .optional(),
   });
 
 export const rentalSettingsSchema = z.object({

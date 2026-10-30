@@ -128,16 +128,74 @@ const buildOrderCreateInput = (
   buyerId: string,
   data: OrderCreateData
 ): Prisma.OrderUncheckedCreateInput => {
+  const quantity = data.quantity ?? 1;
+
+  if (product.listingType === "RENT") {
+    if (!data.requestedFrom || !data.requestedTo) {
+      throw new AppError(
+        "Rental orders require requestedFrom and requestedTo.",
+        400
+      );
+    }
+
+    const fromUtc = Date.UTC(
+      data.requestedFrom.getUTCFullYear(),
+      data.requestedFrom.getUTCMonth(),
+      data.requestedFrom.getUTCDate()
+    );
+
+    const toUtc = Date.UTC(
+      data.requestedTo.getUTCFullYear(),
+      data.requestedTo.getUTCMonth(),
+      data.requestedTo.getUTCDate()
+    );
+
+    const rentalDays =
+      (toUtc - fromUtc) / 86_400_000;
+
+    const subtotal =
+      product.price * quantity * rentalDays;
+
+    const rentalDepositAmount =
+      Number(product.rentalDepositUnitAmount ?? 0) *
+      quantity;
+
+    return {
+      buyerId,
+      sellerId: product.sellerId,
+      productId: product.id,
+      productTitle: product.title,
+
+      quantity,
+      unitPrice: product.price,
+      currency: product.currency,
+      subtotal,
+      rentalDays,
+      rentalDepositAmount,
+
+      transactionType: product.listingType,
+      requestedFrom: data.requestedFrom,
+      requestedTo: data.requestedTo,
+      notes: data.notes,
+    };
+  }
+
   return {
     buyerId,
     sellerId: product.sellerId,
     productId: product.id,
     productTitle: product.title,
+
+    quantity,
     unitPrice: product.price,
+    currency: product.currency,
+    subtotal: product.price * quantity,
+    rentalDays: null,
+    rentalDepositAmount: null,
+
     transactionType: product.listingType,
-    quantity: data.quantity ?? 1,
-    requestedFrom: data.requestedFrom,
-    requestedTo: data.requestedTo,
+    requestedFrom: null,
+    requestedTo: null,
     notes: data.notes,
   };
 };

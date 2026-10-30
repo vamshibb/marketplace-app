@@ -98,10 +98,22 @@ export const createProduct = async (
   data: Prisma.ProductUncheckedCreateInput
 ) => {
   if (typeof data.categoryId === "string") {
-    await categoryService.ensureCategoryExistsById(data.categoryId, 400);
+    await categoryService.ensureCategoryExistsById(
+      data.categoryId,
+      400
+    );
   }
 
-  return productRepository.createProduct(data);
+  const listingType =
+    data.listingType ?? "SALE";
+
+  return productRepository.createProduct({
+    ...data,
+    rentalDepositUnitAmount:
+      listingType === "RENT"
+        ? data.rentalDepositUnitAmount ?? null
+        : null,
+  });
 };
 
 export const updateProduct = async (
