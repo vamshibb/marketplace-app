@@ -521,31 +521,57 @@ export const authorizeOrderPayment = async (
     paymentProvider: PaymentProvider = getConfiguredPaymentProvider()
 ) => {
     const order = await orderRepository.findOrderById(orderId);
+
     if (!order) {
         throw new AppError("Order not found", 404);
     }
 
     if (order.buyerId !== buyerId) {
-        throw new AppError("You are not authorized to perform this action.", 403);
+        throw new AppError(
+            "You are not authorized to perform this action.",
+            403
+        );
     }
 
-    if (order.transactionType === ListingType.SALE) {
+    const purpose =
+        order.transactionType === ListingType.SALE
+            ? PaymentPurpose.SALE
+            : order.transactionType === ListingType.RENT
+              ? PaymentPurpose.RENT
+              : null;
+
+    if (!purpose) {
         throw new AppError(
-            "Sale authorization is currently unavailable because the persisted order currency is missing.",
+            `Unsupported order transaction type: ${order.transactionType}.`,
             409
         );
     }
 
-    if (order.transactionType === ListingType.RENT) {
+    const payment = await createPaymentRecord({
+        orderId: order.id,
+        purpose,
+        amount: order.subtotal,
+        currency: order.currency,
+        idempotencyKey: `${order.id}:${purpose}`,
+    });
+
+    if (
+        payment.status === PaymentStatus.AUTHORIZED ||
+        payment.status === PaymentStatus.CAPTURED
+    ) {
+        return payment;
+    }
+
+    if (payment.status !== PaymentStatus.PENDING) {
         throw new AppError(
-            "Rent authorization is currently unavailable because the authoritative rental total/pricing contract and currency are not yet defined.",
+            `${purpose} payment cannot be authorized from status ${payment.status}.`,
             409
         );
     }
 
-    throw new AppError(
-        `Unsupported order transaction type: ${order.transactionType}.`,
-        409
+    return authorizePayment(
+        payment.id,
+        paymentProvider
     );
 };
 

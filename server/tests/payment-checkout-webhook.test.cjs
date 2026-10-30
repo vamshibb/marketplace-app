@@ -2,8 +2,7 @@ require('ts-node/register/transpile-only');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { PaymentPurpose, PaymentStatus } = require('../src/generated/prisma');
-const orderRepository = require('../src/repositories/order.repository.ts');
+const { Prisma, PaymentPurpose, PaymentStatus } = require('../src/generated/prisma');const orderRepository = require('../src/repositories/order.repository.ts');
 const paymentRepository = require('../src/repositories/payment.repository.ts');
 const paymentService = require('../src/services/payment.service.ts');
 
@@ -69,56 +68,397 @@ test('buyer ownership is enforced for checkout authorization', async () => {
     });
 });
 
-test('SALE checkout fails cleanly when the persisted currency is missing', async () => {
+function createCheckoutPaymentHarness() {
+    const state = {
+        byId: new Map(),
+        byOrderPurpose: new Map(),
+        byKey: new Map(),
+    };
+
+    const store = (payment) => {
+        state.byId.set(payment.id, payment);
+        state.byOrderPurpose.set(
+            `${payment.orderId}:${payment.purpose}`,
+            payment
+        );
+        state.byKey.set(payment.idempotencyKey, payment);
+        return payment;
+    };
+
+    return {
+        state,
+        store,
+
+        stubs: {
+            findPaymentByOrderAndPurpose: async (orderId, purpose) =>
+                state.byOrderPurpose.get(`${orderId}:${purpose}`) ?? null,
+
+            findPaymentByIdempotencyKey: async (idempotencyKey) =>
+                state.byKey.get(idempotencyKey) ?? null,
+
+            findPaymentById: async (id) =>
+                state.byId.get(id) ?? null,
+
+            createPayment: async (data) => {
+                return store({
+                    id: `pay-${state.byId.size + 1}`,
+                    orderId: data.orderId,
+                    purpose: data.purpose,
+                    provider: data.provider ?? null,
+                    providerPaymentId:
+                        data.providerPaymentId ?? null,
+                    amount: new Prisma.Decimal(
+                        data.amount.toString()
+                    ),
+                    currency: data.currency,
+                    status: data.status,
+                    idempotencyKey: data.idempotencyKey,
+                    metadata: null,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                });
+            },
+
+            updatePaymentStatus: async (
+                id,
+                status,
+                data = {}
+            ) => {
+                const payment = state.byId.get(id);
+
+                if (!payment) {
+                    throw new Error('Payment not found');
+                }
+
+                payment.status = status;
+
+                if (data.provider !== undefined) {
+                    payment.provider = data.provider;
+                }
+
+                if (
+                    data.providerPaymentId !== undefined
+                ) {
+                    payment.providerPaymentId =
+                        data.providerPaymentId;
+                }
+
+                if (data.metadata !== undefined) {
+                    payment.metadata = data.metadata;
+                }
+
+                payment.updatedAt = new Date();
+
+                return payment;
+            },
+        },
+    };
+}
+
+test('SALE checkout authorizes the immutable order subtotal and currency', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let providerInput = null;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize(input) {
+            providerInput = input;
+
+            return {
+                provider: 'mock-provider',
+                providerPaymentId: 'sale-provider-payment',
+                status: PaymentStatus.AUTHORIZED,
+                metadata: null,
+            };
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
     await withOrderStubs({
         findOrderById: async () => ({
             id: 'order-sale',
             buyerId: 'buyer-1',
             sellerId: 'seller-1',
             transactionType: 'SALE',
-            unitPrice: '100.00',
+
+            unitPrice: new Prisma.Decimal('24800.00'),
             quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('24800.00'),
+
+            rentalDays: null,
+            rentalDepositAmount: null,
         }),
     }, async () => {
-        await assert.rejects(
-            () => paymentService.authorizeOrderPayment('order-sale', 'buyer-1', unsupportedProvider),
-            (error) => error.statusCode === 409 && /persisted order currency is missing/i.test(error.message)
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeOrderPayment(
+                        'order-sale',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(
+                    result.purpose,
+                    PaymentPurpose.SALE
+                );
+
+                assert.equal(
+                    result.amount.toString(),
+                    '24800'
+                );
+
+                assert.equal(result.currency, 'CAD');
+
+                assert.equal(
+                    providerInput.purpose,
+                    PaymentPurpose.SALE
+                );
+
+                assert.equal(
+                    providerInput.amount.toString(),
+                    '24800'
+                );
+
+                assert.equal(
+                    providerInput.currency,
+                    'CAD'
+                );
+            }
         );
     });
 });
 
-test('RENT checkout fails cleanly when the pricing and currency contract is missing', async () => {
+test('RENT checkout authorizes rental subtotal and never uses RENT_DEPOSIT as the main charge', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let providerInput = null;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize(input) {
+            providerInput = input;
+
+            return {
+                provider: 'mock-provider',
+                providerPaymentId: 'rent-provider-payment',
+                status: PaymentStatus.AUTHORIZED,
+                metadata: null,
+            };
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
     await withOrderStubs({
         findOrderById: async () => ({
             id: 'order-rent',
             buyerId: 'buyer-1',
             sellerId: 'seller-1',
             transactionType: 'RENT',
-            unitPrice: '50.00',
-            quantity: 3,
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount:
+                new Prisma.Decimal('150.00'),
         }),
     }, async () => {
-        await assert.rejects(
-            () => paymentService.authorizeOrderPayment('order-rent', 'buyer-1', unsupportedProvider),
-            (error) => error.statusCode === 409 && /rental total|pricing contract|currency/i.test(error.message)
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeOrderPayment(
+                        'order-rent',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(
+                    result.purpose,
+                    PaymentPurpose.RENT
+                );
+
+                assert.equal(
+                    result.amount.toString(),
+                    '450'
+                );
+
+                assert.equal(result.currency, 'CAD');
+
+                assert.equal(
+                    providerInput.purpose,
+                    PaymentPurpose.RENT
+                );
+
+                assert.notEqual(
+                    providerInput.purpose,
+                    PaymentPurpose.RENT_DEPOSIT
+                );
+
+                assert.equal(
+                    providerInput.amount.toString(),
+                    '450'
+                );
+
+                assert.equal(
+                    providerInput.currency,
+                    'CAD'
+                );
+            }
         );
     });
 });
 
-test('RENT_DEPOSIT cannot be initiated by the checkout service contract', async () => {
+test('repeated checkout authorization returns an existing authorized payment without calling the provider again', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    harness.store({
+        id: 'pay-existing',
+        orderId: 'order-repeat',
+        purpose: PaymentPurpose.RENT,
+        provider: 'mock-provider',
+        providerPaymentId: 'existing-provider-payment',
+        amount: new Prisma.Decimal('450.00'),
+        currency: 'CAD',
+        status: PaymentStatus.AUTHORIZED,
+        idempotencyKey:
+            `order-repeat:${PaymentPurpose.RENT}`,
+        metadata: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error(
+                'provider should not be called'
+            );
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
     await withOrderStubs({
         findOrderById: async () => ({
-            id: 'order-deposit',
+            id: 'order-repeat',
             buyerId: 'buyer-1',
             sellerId: 'seller-1',
             transactionType: 'RENT',
-            unitPrice: '50.00',
-            quantity: 2,
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount:
+                new Prisma.Decimal('150.00'),
         }),
     }, async () => {
-        await assert.rejects(
-            () => paymentService.authorizeOrderPayment('order-deposit', 'buyer-1', unsupportedProvider),
-            (error) => error.statusCode === 409 && /rental total|pricing contract|currency/i.test(error.message)
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeOrderPayment(
+                        'order-repeat',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.id,
+                    'pay-existing'
+                );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(authorizeCalls, 0);
+            }
         );
     });
 });
