@@ -1,6 +1,15 @@
 import type { UserSummary } from "../auth";
 
 export type OrderStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "COMPLETED" | "ACTIVE" | "RETURN_PENDING";
+export type PaymentStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "AUTHORIZED"
+  | "CAPTURED"
+  | "FAILED"
+  | "CANCELLED"
+  | "PARTIALLY_REFUNDED"
+  | "REFUNDED";
 export type OrderRole = "buyer" | "seller";
 export type OrderAction = "accept" | "reject" | "cancel" | "complete" | "start" | "return" | "confirm-return";
 export interface Order {
@@ -12,6 +21,7 @@ export interface Order {
   product: { id: string; title: string };
   buyer: UserSummary;
   seller: UserSummary;
+  paymentStatus: PaymentStatus | null;
   requestedFrom: string | null;
   requestedTo: string | null;
   notes: string | null;

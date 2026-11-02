@@ -59,12 +59,18 @@ export const useAuthorizeOrderPaymentMutation = (orderId: string) => {
     mutationKey,
     mutationFn: async () => {
       const token = useAuthStore.getState().token;
-      if (!token || !user) throw new Error("Please sign in to pay for your order.");
+
+      if (!token || !user) {
+        throw new Error("Please sign in to pay for your order.");
+      }
+
       return authorizeOrderPayment(orderId);
     },
-    onSuccess: (payment) => {
+
+    onSuccess: ({ payment }) => {
       toast.success(`Payment status: ${payment.status}`);
     },
+
     onError: (error) => {
       const message: unknown = isAxiosError(error)
         ? error.response?.data?.message

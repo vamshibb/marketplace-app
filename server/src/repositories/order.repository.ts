@@ -66,7 +66,7 @@ export const confirmRentalReturnAtomically = async (
 
       if (
         error instanceof
-          Prisma.PrismaClientKnownRequestError &&
+        Prisma.PrismaClientKnownRequestError &&
         error.code === "P2034" &&
         attempt < 2
       ) {
@@ -75,7 +75,7 @@ export const confirmRentalReturnAtomically = async (
 
       if (
         error instanceof
-          Prisma.PrismaClientKnownRequestError &&
+        Prisma.PrismaClientKnownRequestError &&
         (error.code === "P2034" ||
           error.code === "P2025")
       ) {
@@ -94,7 +94,7 @@ export const acceptSaleOrder = async (id: string, sellerId: string) => {
       return await prisma.$transaction(async tx => {
         const order = await tx.order.findUnique({ where: { id }, select: orderSelect });
         if (!order || order.sellerId !== sellerId || order.status !== OrderStatus.PENDING ||
-            order.transactionType !== "SALE" || !Number.isInteger(order.quantity) || order.quantity < 1) {
+          order.transactionType !== "SALE" || !Number.isInteger(order.quantity) || order.quantity < 1) {
           return { kind: "conflict" as const };
         }
         const product = await tx.product.findUnique({
@@ -138,7 +138,7 @@ export const acceptRentalOrder = async (id: string, sellerId: string) => {
           where: { id }, select: orderSelect,
         });
         if (!order || order.sellerId !== sellerId || order.status !== OrderStatus.PENDING ||
-            order.transactionType !== "RENT" || !order.requestedFrom || !order.requestedTo) {
+          order.transactionType !== "RENT" || !order.requestedFrom || !order.requestedTo) {
           return { kind: "conflict" as const };
         }
         const product = await tx.product.findUniqueOrThrow({
@@ -202,6 +202,12 @@ export const orderSelect = {
     select: {
       id: true,
       title: true,
+    },
+  },
+  payments: {
+    select: {
+      purpose: true,
+      status: true,
     },
   },
 } satisfies Prisma.OrderSelect;

@@ -3,6 +3,8 @@ import type { UserSummary } from "./user.dto";
 import {
   OrderStatus,
   ListingType,
+  PaymentPurpose,
+  PaymentStatus,
 } from "../generated/prisma";
 
 interface OrderProductSummary {
@@ -12,6 +14,11 @@ interface OrderProductSummary {
 
 interface DecimalLike {
   toString(): string;
+}
+
+interface OrderPaymentSummary {
+  purpose: PaymentPurpose;
+  status: PaymentStatus;
 }
 
 interface OrderSource {
@@ -29,6 +36,8 @@ interface OrderSource {
   product: OrderProductSummary;
   buyer: UserSummary;
   seller: UserSummary;
+
+  payments: OrderPaymentSummary[];
 
   requestedFrom: Date | null;
   requestedTo: Date | null;
@@ -50,6 +59,8 @@ export interface OrderDTO {
   rentalDays: number | null;
   rentalDepositAmount: string | null;
 
+  paymentStatus: PaymentStatus | null;
+
   product: OrderProductSummary;
   buyer: UserSummary;
   seller: UserSummary;
@@ -65,6 +76,17 @@ export interface OrderDTO {
 export const toOrderDTO = (
   order: OrderSource
 ): OrderDTO => {
+  const mainPaymentPurpose =
+    order.transactionType === ListingType.SALE
+      ? PaymentPurpose.SALE
+      : PaymentPurpose.RENT;
+
+  const paymentStatus =
+    order.payments.find(
+      payment =>
+        payment.purpose === mainPaymentPurpose
+    )?.status ?? null;
+
   return {
     id: order.id,
     status: order.status,
@@ -77,6 +99,8 @@ export const toOrderDTO = (
     rentalDays: order.rentalDays,
     rentalDepositAmount:
       order.rentalDepositAmount?.toString() ?? null,
+
+    paymentStatus,
 
     product: order.product,
     buyer: order.buyer,

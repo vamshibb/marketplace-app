@@ -40,7 +40,7 @@ export const getOrders = async (role: OrderRole, signal?: AbortSignal): Promise<
   return response.data.data;
 };
 
-export const authorizeOrderPayment = async (orderId: string): Promise<{
+export type OrderPayment = {
   id: string;
   orderId: string;
   purpose: string;
@@ -49,17 +49,22 @@ export const authorizeOrderPayment = async (orderId: string): Promise<{
   status: string;
   createdAt: string;
   updatedAt: string;
-}> => {
-  const response = await api.post<ApiResponse<{
-    id: string;
-    orderId: string;
-    purpose: string;
-    amount: string;
-    currency: string;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
-  }>>(`/orders/${encodeURIComponent(orderId)}/payments/authorize`);
+};
+
+export type OrderPaymentAuthorization = {
+  payment: OrderPayment;
+  clientSecret: string | null;
+};
+
+export const authorizeOrderPayment = async (
+  orderId: string
+): Promise<OrderPaymentAuthorization> => {
+  const response = await api.post<
+    ApiResponse<OrderPaymentAuthorization>
+  >(
+    `/orders/${encodeURIComponent(orderId)}/payments/authorize`
+  );
+
   return response.data.data;
 };
 

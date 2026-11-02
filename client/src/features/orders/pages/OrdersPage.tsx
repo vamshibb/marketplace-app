@@ -1,18 +1,24 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useCurrentUserQuery } from "../../auth";
 import { useOrderQuery } from "../hooks/useOrderQuery";
 import { useOrdersQuery } from "../hooks/useOrdersQuery";
+import { useAuthorizeOrderPaymentMutation } from "../hooks/useOrderActionMutation";
+import { ordersQueryKeys } from "../queryKeys";
 import { OrderCard } from "../components/OrderCard";
 import type { OrderRole } from "../types";
 
 export const OrdersPage = () => {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: user } = useCurrentUserQuery();
   const orderId = params.get("orderId") ?? "";
   const role: OrderRole = params.get("tab") === "sales" ? "seller" : "buyer";
+  const authorizeOrderPayment = useAuthorizeOrderPaymentMutation(orderId);
+  const paymentReturnSync = useRef<string | null>(null);
   const setRole = (value: OrderRole) => setParams(previous => {
     const next = new URLSearchParams(previous);
     next.set("tab", value === "buyer" ? "purchases" : "sales");
@@ -30,6 +36,46 @@ export const OrdersPage = () => {
   const selectedRow = useRef<HTMLLIElement>(null);
   const scrolled = useRef("");
   const failed = useRef("");
+  useEffect(() => {
+    const paymentReturn = params.get("paymentReturn");
+    const userId = user?.id;
+
+    if (paymentReturn !== "1" || !orderId || !userId) {
+      paymentReturnSync.current = null;
+      return;
+    }
+
+    const syncKey = `${userId}:${orderId}`;
+    if (paymentReturnSync.current === syncKey) {
+      return;
+    }
+
+    paymentReturnSync.current = syncKey;
+
+    void authorizeOrderPayment.mutateAsync()
+      .then(async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: ordersQueryKeys.list(userId, "buyer"),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ordersQueryKeys.detail(userId, orderId),
+          }),
+        ]);
+
+        setParams(previous => {
+          const next = new URLSearchParams(previous);
+          next.delete("paymentReturn");
+          next.delete("payment_intent");
+          next.delete("payment_intent_client_secret");
+          next.delete("redirect_status");
+          return next;
+        }, { replace: true });
+      })
+      .catch(() => {
+        // Leave the return state available so the user can retry or reload.
+      });
+  }, [authorizeOrderPayment, orderId, params, queryClient, setParams, user]);
   useEffect(() => {
     if (!orderId || (!detail.isError && !wrongRole) || failed.current === orderId) return;
     failed.current = orderId;
@@ -77,21 +123,21 @@ export const OrdersPage = () => {
             <p className="text-sm text-red-600">Unable to load orders.</p>
             <button type="button" disabled={orders.isFetching} onClick={() => void orders.refetch()} className="rounded text-sm font-medium text-blue-600 focus-visible:outline-2 focus-visible:outline-blue-600 disabled:opacity-50">{orders.isFetching ? "Retrying..." : "Retry"}</button>
           </div>
-          : visibleOrders.length === 0 ? <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-6 text-center">
-            <p className="text-slate-600">{role === "buyer" ? "No purchases yet." : "No incoming orders yet."}</p>
-            <Link to="/products" className="text-sm font-medium text-blue-600 hover:underline">Browse Products</Link>
-          </div>
-          : <ul className="space-y-3">{visibleOrders.map((order) => <li key={order.id}
-              ref={order.id === orderId ? selectedRow : undefined}
-              tabIndex={order.id === orderId ? -1 : undefined}
-              className={order.id === orderId ? "scroll-mt-20 rounded-xl ring-2 ring-blue-500 ring-offset-2" : undefined}>
-              <OrderCard order={order} role={role} selected={order.id === orderId}
-                onReputationToggle={open => setParams(previous => {
-                  const next = new URLSearchParams(previous);
-                  if (open) next.set("orderId", order.id);
-                  else if (next.get("orderId") === order.id) next.delete("orderId");
-                  return next;
-                }, { replace: true })} /></li>)}</ul>}
+            : visibleOrders.length === 0 ? <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-6 text-center">
+              <p className="text-slate-600">{role === "buyer" ? "No purchases yet." : "No incoming orders yet."}</p>
+              <Link to="/products" className="text-sm font-medium text-blue-600 hover:underline">Browse Products</Link>
+            </div>
+              : <ul className="space-y-3">{visibleOrders.map((order) => <li key={order.id}
+                ref={order.id === orderId ? selectedRow : undefined}
+                tabIndex={order.id === orderId ? -1 : undefined}
+                className={order.id === orderId ? "scroll-mt-20 rounded-xl ring-2 ring-blue-500 ring-offset-2" : undefined}>
+                <OrderCard order={order} role={role} selected={order.id === orderId}
+                  onReputationToggle={open => setParams(previous => {
+                    const next = new URLSearchParams(previous);
+                    if (open) next.set("orderId", order.id);
+                    else if (next.get("orderId") === order.id) next.delete("orderId");
+                    return next;
+                  }, { replace: true })} /></li>)}</ul>}
       </div>
     </section>
   );
