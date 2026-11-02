@@ -763,9 +763,66 @@ export const authorizeRentalDeposit = async (
     orderId: string,
     paymentProvider: PaymentProvider
 ) => {
-    const deposit = await requireRentalDepositForOrder(orderId);
+    const order = await orderRepository.findOrderById(orderId);
 
-    if (deposit.status === PaymentStatus.AUTHORIZED) {
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    if (order.transactionType !== ListingType.RENT) {
+        throw new AppError(
+            "Rental deposit operations are only valid for RENT orders.",
+            409
+        );
+    }
+
+    if (
+        order.rentalDepositAmount === null ||
+        order.rentalDepositAmount.lte(0)
+    ) {
+        throw new AppError(
+            "This rental order does not require a deposit.",
+            409
+        );
+    }
+
+    const existingDeposit =
+        await paymentRepository.findPaymentByOrderAndPurpose(
+            order.id,
+            PaymentPurpose.RENT_DEPOSIT
+        );
+
+    let deposit;
+
+    if (existingDeposit) {
+        if (
+            !existingDeposit.amount.equals(
+                order.rentalDepositAmount
+            ) ||
+            existingDeposit.currency !== order.currency
+        ) {
+            throw new AppError(
+                "Existing RENT_DEPOSIT payment does not match the order financial snapshot.",
+                409
+            );
+        }
+
+        deposit = existingDeposit;
+    } else {
+        deposit = await createPaymentRecord({
+            orderId: order.id,
+            purpose: PaymentPurpose.RENT_DEPOSIT,
+            amount: order.rentalDepositAmount,
+            currency: order.currency,
+            idempotencyKey:
+                `${order.id}:${PaymentPurpose.RENT_DEPOSIT}`,
+        });
+    }
+
+    if (
+        deposit.status === PaymentStatus.AUTHORIZED ||
+        deposit.status === PaymentStatus.CAPTURED
+    ) {
         return deposit;
     }
 
@@ -776,7 +833,10 @@ export const authorizeRentalDeposit = async (
         );
     }
 
-    return authorizePayment(deposit.id, paymentProvider);
+    return authorizePayment(
+        deposit.id,
+        paymentProvider
+    );
 };
 
 export const releaseRentalDeposit = async (

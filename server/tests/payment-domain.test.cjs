@@ -13,9 +13,24 @@ const orders = new Map([
   ['capture-order', { id: 'capture-order', transactionType: ListingType.SALE }],
   ['cancel-order', { id: 'cancel-order', transactionType: ListingType.RENT }],
   ['refund-order', { id: 'refund-order', transactionType: ListingType.SALE }],
-  ['rent-order-hold', { id: 'rent-order-hold', transactionType: ListingType.RENT }],
-  ['rent-order-capture', { id: 'rent-order-capture', transactionType: ListingType.RENT }],
-  ['rent-order-release', { id: 'rent-order-release', transactionType: ListingType.RENT }],
+  ['rent-order-hold', {
+  id: 'rent-order-hold',
+  transactionType: ListingType.RENT,
+  currency: 'USD',
+  rentalDepositAmount: new Prisma.Decimal('25.00'),
+}],
+['rent-order-capture', {
+  id: 'rent-order-capture',
+  transactionType: ListingType.RENT,
+  currency: 'USD',
+  rentalDepositAmount: new Prisma.Decimal('40.00'),
+}],
+['rent-order-release', {
+  id: 'rent-order-release',
+  transactionType: ListingType.RENT,
+  currency: 'USD',
+  rentalDepositAmount: new Prisma.Decimal('35.00'),
+}],
 ]);
 
 const orderRepositoryModule = new Module(orderRepositoryId);
@@ -658,7 +673,12 @@ test('repeated provider operations do not call the provider again once the termi
 test('rental deposit hold/release/capture idempotency does not repeat provider operations', async () => {
   clearState();
 
-  const order1 = { id: 'rent-hold-idempotency', transactionType: ListingType.RENT };
+  const order1 = {
+    id: 'rent-hold-idempotency',
+    transactionType: ListingType.RENT,
+    currency: 'USD',
+    rentalDepositAmount: new Prisma.Decimal('30.00'),
+  };
   orders.set('rent-hold-idempotency', order1);
   const holdPayment = await createPaymentRecord({
     orderId: 'rent-hold-idempotency',
@@ -695,7 +715,12 @@ test('rental deposit hold/release/capture idempotency does not repeat provider o
   assert.equal(authorizeCalls, 1);
   assert.equal(alreadyAuthorized.status, PaymentStatus.AUTHORIZED);
 
-  const order2 = { id: 'rent-release-idempotency', transactionType: ListingType.RENT };
+  const order2 = {
+    id: 'rent-release-idempotency',
+    transactionType: ListingType.RENT,
+    currency: 'USD',
+    rentalDepositAmount: new Prisma.Decimal('35.00'),
+  };
   orders.set('rent-release-idempotency', order2);
   const releasePayment = await createPaymentRecord({
     orderId: 'rent-release-idempotency',
@@ -1101,6 +1126,13 @@ test('rental deposit lifecycle uses the existing rental deposit payment for RENT
     (error) => error && error.statusCode === 409
   );
 
+  orders.set('sale-order', {
+    id: 'sale-order',
+    transactionType: ListingType.SALE,
+    currency: 'USD',
+    rentalDepositAmount: null,
+  });
+
   await assert.rejects(
     authorizeRentalDeposit('sale-order', mockProvider),
     (error) => error && error.statusCode === 409
@@ -1110,6 +1142,13 @@ test('rental deposit lifecycle uses the existing rental deposit payment for RENT
     authorizeRentalDeposit('missing-order', mockProvider),
     (error) => error && error.statusCode === 404
   );
+
+  orders.set('rent-order', {
+    id: 'rent-order',
+    transactionType: ListingType.RENT,
+    currency: 'USD',
+    rentalDepositAmount: new Prisma.Decimal('0.00'),
+  });
 
   await assert.rejects(
     authorizeRentalDeposit('rent-order', mockProvider),

@@ -463,6 +463,364 @@ test('repeated checkout authorization returns an existing authorized payment wit
     });
 });
 
+test('rental deposit authorization uses the immutable order deposit amount and currency', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let providerInput = null;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize(input) {
+            providerInput = input;
+
+            return {
+                provider: 'mock-provider',
+                providerPaymentId: 'deposit-provider-payment',
+                status: PaymentStatus.AUTHORIZED,
+                metadata: null,
+            };
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-deposit',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 2,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('900.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount:
+                new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeRentalDeposit(
+                        'order-deposit',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(
+                    result.purpose,
+                    PaymentPurpose.RENT_DEPOSIT
+                );
+
+                assert.equal(
+                    result.amount.toString(),
+                    '150'
+                );
+
+                assert.equal(result.currency, 'CAD');
+
+                assert.equal(
+                    providerInput.purpose,
+                    PaymentPurpose.RENT_DEPOSIT
+                );
+
+                assert.equal(
+                    providerInput.amount.toString(),
+                    '150'
+                );
+
+                assert.equal(
+                    providerInput.currency,
+                    'CAD'
+                );
+            }
+        );
+    });
+});
+
+test('rental deposit authorization rejects zero deposit orders without creating a payment', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-zero-deposit',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount:
+                new Prisma.Decimal('0.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                await assert.rejects(
+                    () =>
+                        paymentService.authorizeRentalDeposit(
+                            'order-zero-deposit',
+                            provider
+                        ),
+                    (error) =>
+                        error.statusCode === 409 &&
+                        /does not require a deposit/i.test(
+                            error.message
+                        )
+                );
+
+                assert.equal(
+                    harness.state.byId.size,
+                    0
+                );
+
+                assert.equal(authorizeCalls, 0);
+            }
+        );
+    });
+});
+
+test('SALE orders cannot authorize rental deposits', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'sale-order-deposit',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'SALE',
+
+            unitPrice: new Prisma.Decimal('100.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('100.00'),
+
+            rentalDays: null,
+            rentalDepositAmount: null,
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                await assert.rejects(
+                    () =>
+                        paymentService.authorizeRentalDeposit(
+                            'sale-order-deposit',
+                            provider
+                        ),
+                    (error) =>
+                        error.statusCode === 409 &&
+                        /only valid for RENT orders/i.test(
+                            error.message
+                        )
+                );
+
+                assert.equal(
+                    harness.state.byId.size,
+                    0
+                );
+
+                assert.equal(authorizeCalls, 0);
+            }
+        );
+    });
+});
+
+test('repeated rental deposit authorization returns the existing authorized deposit', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    harness.store({
+        id: 'deposit-existing',
+        orderId: 'order-repeat-deposit',
+        purpose: PaymentPurpose.RENT_DEPOSIT,
+        provider: 'mock-provider',
+        providerPaymentId: 'existing-deposit-provider-payment',
+        amount: new Prisma.Decimal('150.00'),
+        currency: 'CAD',
+        status: PaymentStatus.AUTHORIZED,
+        idempotencyKey:
+            `order-repeat-deposit:${PaymentPurpose.RENT_DEPOSIT}`,
+        metadata: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        name: 'mock-provider',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-repeat-deposit',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount:
+                new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeRentalDeposit(
+                        'order-repeat-deposit',
+                        provider
+                    );
+
+                assert.equal(
+                    result.id,
+                    'deposit-existing'
+                );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(
+                    result.purpose,
+                    PaymentPurpose.RENT_DEPOSIT
+                );
+
+                assert.equal(authorizeCalls, 0);
+            }
+        );
+    });
+});
+
 test('webhook verifier sees the exact raw body and canonical provider identity', async () => {
     const rawBody = Buffer.from(JSON.stringify({ hello: 'world' }));
     const provider = {
