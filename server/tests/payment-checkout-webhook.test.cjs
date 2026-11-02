@@ -463,6 +463,365 @@ test('repeated checkout authorization returns an existing authorized payment wit
     });
 });
 
+test('checkout authorization returns client secret while payment remains PROCESSING', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+
+            return {
+                provider: 'stripe',
+                providerPaymentId: 'pi_checkout_processing',
+                status: PaymentStatus.PROCESSING,
+                clientSecret:
+                    'pi_checkout_processing_secret_123',
+                metadata: {
+                    stripePaymentIntentStatus:
+                        'requires_action',
+                },
+            };
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-checkout-processing',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'SALE',
+            unitPrice: new Prisma.Decimal('100.00'),
+            quantity: 1,
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('100.00'),
+            rentalDays: null,
+            rentalDepositAmount: null,
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeOrderPayment(
+                        'order-checkout-processing',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.PROCESSING
+                );
+
+                assert.equal(
+                    result.provider,
+                    'stripe'
+                );
+
+                assert.equal(
+                    result.providerPaymentId,
+                    'pi_checkout_processing'
+                );
+
+                assert.equal(
+                    result.clientSecret,
+                    'pi_checkout_processing_secret_123'
+                );
+
+                assert.equal(authorizeCalls, 1);
+
+                const persisted =
+                    harness.state.byId.get(result.id);
+
+                assert.equal(
+                    persisted.status,
+                    PaymentStatus.PROCESSING
+                );
+
+                assert.equal(
+                    persisted.providerPaymentId,
+                    'pi_checkout_processing'
+                );
+
+                assert.equal(
+                    persisted.clientSecret,
+                    undefined
+                );
+            }
+        );
+    });
+});
+
+test('repeated checkout authorization recovers client secret for PROCESSING payment without reauthorizing', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    harness.store({
+        id: 'payment-processing-refresh',
+        orderId: 'order-processing-refresh',
+        purpose: PaymentPurpose.SALE,
+        provider: 'stripe',
+        providerPaymentId: 'pi_processing_refresh',
+        amount: new Prisma.Decimal('75.00'),
+        currency: 'CAD',
+        status: PaymentStatus.PROCESSING,
+        idempotencyKey:
+            `order-processing-refresh:${PaymentPurpose.SALE}`,
+        metadata: {
+            stripePaymentIntentStatus:
+                'requires_action',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    let authorizeCalls = 0;
+    let getStatusCalls = 0;
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error(
+                'authorize should not be called'
+            );
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus(providerPaymentId) {
+            getStatusCalls += 1;
+
+            assert.equal(
+                providerPaymentId,
+                'pi_processing_refresh'
+            );
+
+            return {
+                provider: 'stripe',
+                providerPaymentId:
+                    'pi_processing_refresh',
+                status: PaymentStatus.PROCESSING,
+                clientSecret:
+                    'pi_processing_refresh_secret_123',
+                metadata: {
+                    stripePaymentIntentStatus:
+                        'requires_action',
+                },
+            };
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-processing-refresh',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'SALE',
+            unitPrice: new Prisma.Decimal('75.00'),
+            quantity: 1,
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('75.00'),
+            rentalDays: null,
+            rentalDepositAmount: null,
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeOrderPayment(
+                        'order-processing-refresh',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.PROCESSING
+                );
+
+                assert.equal(
+                    result.clientSecret,
+                    'pi_processing_refresh_secret_123'
+                );
+
+                assert.equal(authorizeCalls, 0);
+                assert.equal(getStatusCalls, 1);
+            }
+        );
+    });
+});
+
+test('repeated checkout authorization syncs PROCESSING payment to AUTHORIZED after Stripe confirmation', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    harness.store({
+        id: 'payment-processing-authorized',
+        orderId: 'order-processing-authorized',
+        purpose: PaymentPurpose.SALE,
+        provider: 'stripe',
+        providerPaymentId:
+            'pi_processing_authorized',
+        amount: new Prisma.Decimal('125.00'),
+        currency: 'CAD',
+        status: PaymentStatus.PROCESSING,
+        idempotencyKey:
+            `order-processing-authorized:${PaymentPurpose.SALE}`,
+        metadata: {
+            stripePaymentIntentStatus:
+                'requires_action',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    let authorizeCalls = 0;
+    let getStatusCalls = 0;
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error(
+                'authorize should not be called'
+            );
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus(providerPaymentId) {
+            getStatusCalls += 1;
+
+            assert.equal(
+                providerPaymentId,
+                'pi_processing_authorized'
+            );
+
+            return {
+                provider: 'stripe',
+                providerPaymentId:
+                    'pi_processing_authorized',
+                status: PaymentStatus.AUTHORIZED,
+                clientSecret:
+                    'pi_processing_authorized_secret_123',
+                metadata: {
+                    stripePaymentIntentStatus:
+                        'requires_capture',
+                },
+            };
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-processing-authorized',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'SALE',
+            unitPrice: new Prisma.Decimal('125.00'),
+            quantity: 1,
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('125.00'),
+            rentalDays: null,
+            rentalDepositAmount: null,
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeOrderPayment(
+                        'order-processing-authorized',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(
+                    result.clientSecret,
+                    'pi_processing_authorized_secret_123'
+                );
+
+                assert.equal(authorizeCalls, 0);
+                assert.equal(getStatusCalls, 1);
+
+                const persisted =
+                    harness.state.byId.get(
+                        'payment-processing-authorized'
+                    );
+
+                assert.equal(
+                    persisted.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(
+                    persisted.clientSecret,
+                    undefined
+                );
+            }
+        );
+    });
+});
+
 test('rental deposit authorization uses the immutable order deposit amount and currency', async () => {
     const harness = createCheckoutPaymentHarness();
 

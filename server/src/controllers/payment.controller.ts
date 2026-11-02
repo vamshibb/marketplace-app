@@ -17,14 +17,26 @@ export const authorizeOrderPayment = async (
     next: NextFunction
 ) => {
     try {
-        const payment = await paymentService.authorizeOrderPayment(
-            req.params.orderId,
-            req.user!.id,
-            getConfiguredPaymentProvider()
-        );
+        const authorization =
+            await paymentService.authorizeOrderPayment(
+                req.params.orderId,
+                req.user!.id,
+                getConfiguredPaymentProvider()
+            );
 
         return res.status(200).json(
-            successResponse(toPaymentResponseDto(payment), "Payment authorized successfully")
+            successResponse(
+                {
+                    payment:
+                        toPaymentResponseDto(
+                            authorization
+                        ),
+                    clientSecret:
+                        authorization.clientSecret ??
+                        null,
+                },
+                "Payment authorization initialized"
+            )
         );
     } catch (error) {
         next(error);

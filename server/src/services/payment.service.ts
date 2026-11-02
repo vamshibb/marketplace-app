@@ -518,9 +518,11 @@ const updatePaymentWithTransition = async (
 export const authorizeOrderPayment = async (
     orderId: string,
     buyerId: string,
-    paymentProvider: PaymentProvider = getConfiguredPaymentProvider()
+    paymentProvider: PaymentProvider =
+        getConfiguredPaymentProvider()
 ) => {
-    const order = await orderRepository.findOrderById(orderId);
+    const order =
+        await orderRepository.findOrderById(orderId);
 
     if (!order) {
         throw new AppError("Order not found", 404);
@@ -552,14 +554,33 @@ export const authorizeOrderPayment = async (
         purpose,
         amount: order.subtotal,
         currency: order.currency,
-        idempotencyKey: `${order.id}:${purpose}`,
+        idempotencyKey:
+            `${order.id}:${purpose}`,
     });
 
     if (
         payment.status === PaymentStatus.AUTHORIZED ||
         payment.status === PaymentStatus.CAPTURED
     ) {
-        return payment;
+        return {
+            ...payment,
+            clientSecret: null,
+        };
+    }
+
+    if (payment.status === PaymentStatus.PROCESSING) {
+        if (!payment.providerPaymentId) {
+            throw new AppError(
+                "Processing payment is missing its provider payment reference.",
+                409
+            );
+        }
+
+        return syncPaymentStatus(
+            payment.id,
+            paymentProvider,
+            payment.providerPaymentId
+        );
     }
 
     if (payment.status !== PaymentStatus.PENDING) {
@@ -890,7 +911,6 @@ export const authorizePayment = async (
 ) => {
     const payment = await requirePaymentRecord(paymentId);
 
-    // Reject terminal/invalid states before making any provider call.
     validateStatusTransition(
         payment.status,
         PaymentStatus.AUTHORIZED
@@ -941,16 +961,31 @@ export const authorizePayment = async (
         "authorize"
     );
 
-    return updatePaymentWithTransition(
-        payment.id,
-        providerResult.status,
-        providerResult.metadata,
-        {
-            provider: providerResult.provider,
-            providerPaymentId:
-                providerResult.providerPaymentId,
-        }
-    );
+    if (providerResult.status === payment.status) {
+        return {
+            ...payment,
+            clientSecret:
+                providerResult.clientSecret ?? null,
+        };
+    }
+
+    const updatedPayment =
+        await updatePaymentWithTransition(
+            payment.id,
+            providerResult.status,
+            providerResult.metadata,
+            {
+                provider: providerResult.provider,
+                providerPaymentId:
+                    providerResult.providerPaymentId,
+            }
+        );
+
+    return {
+        ...updatedPayment,
+        clientSecret:
+            providerResult.clientSecret ?? null,
+    };
 };
 
 export const capturePayment = async (
@@ -1034,33 +1069,69 @@ export const refundPayment = async (
     });
 };
 
-export const syncPaymentStatus = async (paymentId: string, paymentProvider: PaymentProvider) => {
+export const syncPaymentStatus = async (
+    paymentId: string,
+    paymentProvider: PaymentProvider,
+    _providerPaymentId?: string
+) => {
     const payment = await requirePaymentRecord(paymentId);
+
     if (!payment.providerPaymentId) {
-        throw new AppError("Payment is missing providerPaymentId for sync.", 409);
+        throw new AppError(
+            "Payment is missing providerPaymentId for status sync.",
+            409
+        );
     }
 
-    const providerResult = await paymentProvider.getStatus(payment.providerPaymentId, payment.orderId);
+    const providerResult =
+        await paymentProvider.getStatus(
+            payment.providerPaymentId,
+            payment.orderId
+        );
 
-    ensureProviderIdentityConsistency(payment, providerResult, "sync");
+    ensureProviderIdentityConsistency(
+        payment,
+        providerResult,
+        "status sync"
+    );
 
     if (providerResult.status === payment.status) {
-        return paymentRepository.updatePaymentStatus(payment.id, payment.status, {
-            provider: providerResult.provider ?? payment.provider,
-            providerPaymentId: providerResult.providerPaymentId ?? payment.providerPaymentId,
-            metadata: (() => {
-                const merged = mergeMetadata(payment.metadata, providerResult.metadata ?? null);
-                return merged === undefined ? undefined : merged ?? Prisma.DbNull;
-            })(),
-        });
+        return {
+            ...payment,
+            clientSecret:
+                providerResult.clientSecret ?? null,
+        };
     }
 
-    if (!providerResult.status || !VALID_TRANSITIONS[payment.status]?.includes(providerResult.status)) {
-        throw new AppError("Payment provider reported an invalid or disallowed status transition.", 409);
+    if (
+        !providerResult.status ||
+        !VALID_TRANSITIONS[payment.status]?.includes(
+            providerResult.status
+        )
+    ) {
+        throw new AppError(
+            "Payment provider reported an invalid or disallowed status transition.",
+            409
+        );
     }
 
-    return updatePaymentWithTransition(payment.id, providerResult.status, providerResult.metadata, {
-        provider: providerResult.provider ?? payment.provider,
-        providerPaymentId: providerResult.providerPaymentId ?? payment.providerPaymentId,
-    });
+    const updatedPayment =
+        await updatePaymentWithTransition(
+            payment.id,
+            providerResult.status,
+            providerResult.metadata,
+            {
+                provider:
+                    providerResult.provider,
+                providerPaymentId:
+                    providerResult.providerPaymentId ??
+                    payment.providerPaymentId,
+            }
+        );
+
+    return {
+        ...updatedPayment,
+        clientSecret:
+            providerResult.clientSecret ?? null,
+    };
 };
