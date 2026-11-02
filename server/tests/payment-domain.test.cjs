@@ -527,6 +527,55 @@ test('full REFUNDED result still works', async () => {
   assert.equal(refunded.providerPaymentId, 'full-refund-provider');
 });
 
+test('authorization can persist PROCESSING with provider identity and reference', async () => {
+  clearState();
+
+  const payment = await createPaymentRecord({
+    orderId: 'sale-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '55.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-processing-authorization',
+  });
+
+  const processingProvider = {
+    ...mockProvider,
+    authorize: async () => ({
+      provider: 'stripe',
+      providerPaymentId: 'pi_processing_123',
+      status: PaymentStatus.PROCESSING,
+      metadata: {
+        stripePaymentIntentStatus: 'requires_action',
+      },
+    }),
+  };
+
+  const result = await authorizePayment(
+    payment.id,
+    processingProvider
+  );
+
+  assert.equal(
+    result.status,
+    PaymentStatus.PROCESSING
+  );
+
+  assert.equal(
+    result.provider,
+    'stripe'
+  );
+
+  assert.equal(
+    result.providerPaymentId,
+    'pi_processing_123'
+  );
+
+  assert.equal(
+    result.metadata.stripePaymentIntentStatus,
+    'requires_action'
+  );
+});
+
 test('generic arbitrary status updates are not exposed and provider failure leaves state unchanged', async () => {
   clearState();
   const payment = await createPaymentRecord({

@@ -1,5 +1,6 @@
 import { PaymentPurpose, PaymentStatus, Prisma } from "../generated/prisma";
 import { AppError } from "../errors/AppError";
+import { stripePaymentProvider } from "./stripePaymentProvider";
 
 export type PaymentProviderMetadata = Prisma.InputJsonObject;
 export type PaymentProviderHeaders = Record<string, string | string[] | undefined>;
@@ -30,6 +31,7 @@ export interface PaymentProviderResult {
     providerPaymentId?: string | null;
     status: PaymentStatus;
     metadata?: PaymentProviderMetadata | null;
+    clientSecret?: string | null;
 }
 
 export interface PaymentProvider {
@@ -65,10 +67,15 @@ export const unsupportedPaymentProvider: PaymentProvider = {
 };
 
 export const getConfiguredPaymentProvider = (): PaymentProvider => {
-    const configured = process.env.PAYMENT_PROVIDER?.trim().toLowerCase();
+    const configured =
+        process.env.PAYMENT_PROVIDER?.trim().toLowerCase();
 
     if (!configured) {
         return unsupportedPaymentProvider;
+    }
+
+    if (configured === "stripe") {
+        return stripePaymentProvider;
     }
 
     if (configured === "mock") {
@@ -79,7 +86,7 @@ export const getConfiguredPaymentProvider = (): PaymentProvider => {
     }
 
     throw new AppError(
-        `Unsupported payment provider configuration: ${configured}. No real provider adapter is configured for this environment.`,
+        `Unsupported payment provider configuration: ${configured}.`,
         501
     );
 };

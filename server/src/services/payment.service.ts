@@ -889,22 +889,68 @@ export const authorizePayment = async (
     options: PaymentOperationOptions = {}
 ) => {
     const payment = await requirePaymentRecord(paymentId);
-    validateStatusTransition(payment.status, PaymentStatus.AUTHORIZED);
 
-    const providerRequest = buildProviderRequest(payment, "authorize", options);
-    const providerResult = await paymentProvider.authorize(providerRequest);
+    // Reject terminal/invalid states before making any provider call.
+    validateStatusTransition(
+        payment.status,
+        PaymentStatus.AUTHORIZED
+    );
 
-    if (providerResult.status !== PaymentStatus.AUTHORIZED) {
-        throw new AppError("Payment provider did not authorize the payment.", 409);
+    const providerRequest = buildProviderRequest(
+        payment,
+        "authorize",
+        options
+    );
+
+    const providerResult =
+        await paymentProvider.authorize(providerRequest);
+
+    if (
+        providerResult.status !== PaymentStatus.PROCESSING &&
+        providerResult.status !== PaymentStatus.AUTHORIZED
+    ) {
+        throw new AppError(
+            "Payment provider did not return a valid authorization state.",
+            409
+        );
     }
 
-    ensureAuthorizeResultIsPersistable(providerResult);
-    ensureProviderIdentityConsistency(payment, providerResult, "authorize");
+    if (
+        !providerResult.provider ||
+        !providerResult.provider.trim()
+    ) {
+        throw new AppError(
+            "Payment provider did not return a provider identity.",
+            409
+        );
+    }
 
-    return updatePaymentWithTransition(payment.id, PaymentStatus.AUTHORIZED, providerResult.metadata, {
-        provider: providerResult.provider ?? payment.provider,
-        providerPaymentId: providerResult.providerPaymentId ?? payment.providerPaymentId,
-    });
+    if (
+        !providerResult.providerPaymentId ||
+        !providerResult.providerPaymentId.trim()
+    ) {
+        throw new AppError(
+            "Payment provider did not return a providerPaymentId.",
+            409
+        );
+    }
+
+    ensureProviderIdentityConsistency(
+        payment,
+        providerResult,
+        "authorize"
+    );
+
+    return updatePaymentWithTransition(
+        payment.id,
+        providerResult.status,
+        providerResult.metadata,
+        {
+            provider: providerResult.provider,
+            providerPaymentId:
+                providerResult.providerPaymentId,
+        }
+    );
 };
 
 export const capturePayment = async (
