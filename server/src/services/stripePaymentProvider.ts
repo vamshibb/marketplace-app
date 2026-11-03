@@ -3,8 +3,10 @@ import { PaymentStatus, Prisma } from "../generated/prisma";
 import { AppError } from "../errors/AppError";
 import type {
     PaymentProvider,
+    PaymentProviderHeaders,
     PaymentProviderRequest,
     PaymentProviderResult,
+    VerifiedPaymentWebhookEvent,
 } from "./paymentProvider";
 
 const STRIPE_PROVIDER_NAME = "stripe";
@@ -26,6 +28,50 @@ const createStripeClient = (): Stripe =>
     new Stripe(requireStripeSecretKey(), {
         maxNetworkRetries: 2,
     });
+
+const requireStripeWebhookSecret = (): string => {
+    const webhookSecret =
+        process.env.STRIPE_WEBHOOK_SECRET?.trim();
+
+    if (!webhookSecret) {
+        throw new AppError(
+            "STRIPE_WEBHOOK_SECRET is required when Stripe webhooks are enabled.",
+            500
+        );
+    }
+
+    return webhookSecret;
+};
+
+const getWebhookSignature = (
+    headers: PaymentProviderHeaders
+): string => {
+    const rawSignature =
+        headers["stripe-signature"] ??
+        headers["Stripe-Signature"];
+
+    const signatureValue = Array.isArray(rawSignature)
+        ? rawSignature.find(
+            (value) =>
+                typeof value === "string" &&
+                value.trim().length > 0
+        )
+        : rawSignature;
+
+    const signature =
+        typeof signatureValue === "string"
+            ? signatureValue.trim()
+            : "";
+
+    if (!signature) {
+        throw new AppError(
+            "Missing Stripe webhook signature.",
+            400
+        );
+    }
+
+    return signature;
+};
 
 const requireProviderPaymentId = (
     input: PaymentProviderRequest,
@@ -143,6 +189,38 @@ const resolvePaymentStatus = (
     );
 };
 
+const mapWebhookEventPaymentStatus = (
+    eventType: string,
+    paymentIntent: Stripe.PaymentIntent
+): PaymentStatus => {
+    switch (eventType) {
+        case "payment_intent.amount_capturable_updated":
+            return mapPaymentIntentStatus(
+                paymentIntent.status
+            );
+
+        case "payment_intent.processing":
+            return PaymentStatus.PROCESSING;
+
+        case "payment_intent.payment_failed":
+            return mapPaymentIntentStatus(
+                paymentIntent.status
+            );
+
+        case "payment_intent.canceled":
+            return PaymentStatus.CANCELLED;
+
+        case "payment_intent.succeeded":
+            return PaymentStatus.CAPTURED;
+
+        default:
+            throw new AppError(
+                `Unsupported Stripe webhook event type: ${eventType}.`,
+                400
+            );
+    }
+};
+
 const toProviderResult = (
     paymentIntent: Stripe.PaymentIntent
 ): PaymentProviderResult => {
@@ -160,10 +238,10 @@ const toProviderResult = (
                 paymentIntent.status,
             ...(charge
                 ? {
-                      stripeChargeId: charge.id,
-                      stripeAmountRefunded:
-                          charge.amount_refunded,
-                  }
+                    stripeChargeId: charge.id,
+                    stripeAmountRefunded:
+                        charge.amount_refunded,
+                }
                 : {}),
         },
     };
@@ -322,11 +400,68 @@ export const createStripePaymentProvider = (
         return toProviderResult(paymentIntent);
     },
 
-    async verifyWebhook() {
-        throw new AppError(
-            "Stripe webhook verification is not implemented until P4.",
-            501
-        );
+    async verifyWebhook(
+        rawBody: Buffer,
+        headers: PaymentProviderHeaders
+    ): Promise<VerifiedPaymentWebhookEvent> {
+        const webhookSecret =
+            requireStripeWebhookSecret();
+        const signature =
+            getWebhookSignature(headers);
+
+        let event: Stripe.Event;
+
+        try {
+            event =
+                stripe.webhooks.constructEvent(
+                    rawBody,
+                    signature,
+                    webhookSecret
+                );
+        } catch {
+            throw new AppError(
+                "Unable to verify Stripe webhook signature.",
+                400
+            );
+        }
+
+        const eventType = event.type;
+
+        if (
+            eventType !==
+            "payment_intent.amount_capturable_updated" &&
+            eventType !== "payment_intent.processing" &&
+            eventType !== "payment_intent.payment_failed" &&
+            eventType !== "payment_intent.canceled" &&
+            eventType !== "payment_intent.succeeded"
+        ) {
+            throw new AppError(
+                `Unsupported Stripe webhook event type: ${eventType}.`,
+                400
+            );
+        }
+
+        const paymentIntent =
+            event.data.object as Stripe.PaymentIntent;
+
+        return {
+            provider: STRIPE_PROVIDER_NAME,
+            providerEventId: event.id,
+            eventType,
+            providerPaymentId: paymentIntent.id,
+            paymentStatus: mapWebhookEventPaymentStatus(
+                eventType,
+                paymentIntent
+            ),
+            occurredAt: new Date(
+                event.created * 1000
+            ),
+            safeMetadata: {
+                stripePaymentIntentStatus:
+                    paymentIntent.status,
+                stripeLivemode: paymentIntent.livemode,
+            },
+        };
     },
 });
 
