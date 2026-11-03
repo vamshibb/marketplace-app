@@ -43,6 +43,38 @@ export const authorizeOrderPayment = async (
     }
 };
 
+export const authorizeRentalDeposit = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const authorization =
+            await paymentService.authorizeRentalDeposit(
+                req.params.orderId,
+                req.user!.id,
+                getConfiguredPaymentProvider()
+            );
+
+        return res.status(200).json(
+            successResponse(
+                {
+                    payment:
+                        toPaymentResponseDto(
+                            authorization
+                        ),
+                    clientSecret:
+                        authorization.clientSecret ??
+                        null,
+                },
+                "Rental deposit authorization initialized"
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
+
 export const handleWebhook = async (
     req: Request,
     res: Response,

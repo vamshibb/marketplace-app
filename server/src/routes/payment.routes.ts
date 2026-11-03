@@ -12,6 +12,12 @@ router.post(
 );
 
 router.post(
+    "/orders/:orderId/payments/deposit/authorize",
+    authMiddleware,
+    paymentController.authorizeRentalDeposit
+);
+
+router.post(
     "/payments/webhooks/:provider",
     paymentController.handleWebhook
 );

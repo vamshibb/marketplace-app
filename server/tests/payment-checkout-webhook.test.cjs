@@ -2,7 +2,7 @@ require('ts-node/register/transpile-only');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { Prisma, PaymentPurpose, PaymentStatus } = require('../src/generated/prisma');const orderRepository = require('../src/repositories/order.repository.ts');
+const { Prisma, PaymentPurpose, PaymentStatus } = require('../src/generated/prisma'); const orderRepository = require('../src/repositories/order.repository.ts');
 const paymentRepository = require('../src/repositories/payment.repository.ts');
 const paymentService = require('../src/services/payment.service.ts');
 
@@ -886,6 +886,7 @@ test('rental deposit authorization uses the immutable order deposit amount and c
                 const result =
                     await paymentService.authorizeRentalDeposit(
                         'order-deposit',
+                        'buyer-1',
                         provider
                     );
 
@@ -984,6 +985,7 @@ test('rental deposit authorization rejects zero deposit orders without creating 
                     () =>
                         paymentService.authorizeRentalDeposit(
                             'order-zero-deposit',
+                            'buyer-1',
                             provider
                         ),
                     (error) =>
@@ -1062,6 +1064,7 @@ test('SALE orders cannot authorize rental deposits', async () => {
                     () =>
                         paymentService.authorizeRentalDeposit(
                             'sale-order-deposit',
+                            'buyer-1',
                             provider
                         ),
                     (error) =>
@@ -1077,6 +1080,525 @@ test('SALE orders cannot authorize rental deposits', async () => {
                 );
 
                 assert.equal(authorizeCalls, 0);
+            }
+        );
+    });
+});
+
+test('buyer ownership is enforced for rental deposit authorization', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+    let getStatusCalls = 0;
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            getStatusCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-buyer-enforced',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount: new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                await assert.rejects(
+                    () =>
+                        paymentService.authorizeRentalDeposit(
+                            'order-buyer-enforced',
+                            'buyer-2',
+                            provider
+                        ),
+                    (error) =>
+                        error.statusCode === 403 &&
+                        /not authorized|authorized/i.test(
+                            error.message
+                        )
+                );
+
+                assert.equal(harness.state.byId.size, 0);
+                assert.equal(authorizeCalls, 0);
+                assert.equal(getStatusCalls, 0);
+            }
+        );
+    });
+});
+
+test('first rental deposit authorization can return PROCESSING with a client secret', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize(input) {
+            authorizeCalls += 1;
+
+            assert.equal(input.orderId, 'order-processing-init');
+            assert.equal(input.purpose, PaymentPurpose.RENT_DEPOSIT);
+            assert.equal(input.amount.toString(), '150');
+            assert.equal(input.currency, 'CAD');
+
+            return {
+                provider: 'stripe',
+                providerPaymentId: 'deposit-processing-provider-payment',
+                status: PaymentStatus.PROCESSING,
+                clientSecret: 'pi_secret_processing_init',
+                metadata: null,
+            };
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            throw new Error('not used');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-processing-init',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount: new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeRentalDeposit(
+                        'order-processing-init',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.PROCESSING
+                );
+
+                assert.equal(
+                    result.clientSecret,
+                    'pi_secret_processing_init'
+                );
+
+                assert.equal(authorizeCalls, 1);
+                assert.equal(harness.state.byId.size, 1);
+
+                const payment = harness.state.byId.values().next().value;
+                assert.equal(
+                    payment.purpose,
+                    PaymentPurpose.RENT_DEPOSIT
+                );
+                assert.equal(payment.amount.toString(), '150');
+                assert.equal(payment.currency, 'CAD');
+                assert.equal(payment.provider, 'stripe');
+                assert.equal(
+                    payment.providerPaymentId,
+                    'deposit-processing-provider-payment'
+                );
+                assert.equal(
+                    Object.prototype.hasOwnProperty.call(
+                        payment,
+                        'clientSecret'
+                    ),
+                    false
+                );
+            }
+        );
+    });
+});
+
+test('repeated PROCESSING rental deposit authorization returns the transient client secret without reauthorizing', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+    let getStatusCalls = 0;
+
+    const existing = harness.store({
+        id: 'deposit-processing-existing',
+        orderId: 'order-processing-repeat',
+        purpose: PaymentPurpose.RENT_DEPOSIT,
+        provider: 'stripe',
+        providerPaymentId: 'existing-processing-provider-payment',
+        amount: new Prisma.Decimal('150.00'),
+        currency: 'CAD',
+        status: PaymentStatus.PROCESSING,
+        idempotencyKey:
+            `order-processing-repeat:${PaymentPurpose.RENT_DEPOSIT}`,
+        metadata: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus(providerPaymentId, orderId) {
+            getStatusCalls += 1;
+            assert.equal(providerPaymentId, 'existing-processing-provider-payment');
+            assert.equal(orderId, 'order-processing-repeat');
+
+            return {
+                provider: 'stripe',
+                providerPaymentId,
+                status: PaymentStatus.PROCESSING,
+                clientSecret: 'pi_secret_processing_repeat',
+                metadata: null,
+            };
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-processing-repeat',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount: new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeRentalDeposit(
+                        'order-processing-repeat',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.PROCESSING
+                );
+
+                assert.equal(
+                    result.clientSecret,
+                    'pi_secret_processing_repeat'
+                );
+
+                assert.equal(authorizeCalls, 0);
+                assert.equal(getStatusCalls, 1);
+
+                const payment = harness.state.byId.get(existing.id);
+                assert.equal(payment.status, PaymentStatus.PROCESSING);
+                assert.equal(
+                    Object.prototype.hasOwnProperty.call(
+                        payment,
+                        'clientSecret'
+                    ),
+                    false
+                );
+            }
+        );
+    });
+});
+
+test('repeated PROCESSING rental deposit authorization can sync to AUTHORIZED', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+    let getStatusCalls = 0;
+
+    const existing = harness.store({
+        id: 'deposit-processing-sync-authorized',
+        orderId: 'order-processing-sync',
+        purpose: PaymentPurpose.RENT_DEPOSIT,
+        provider: 'stripe',
+        providerPaymentId: 'existing-processing-sync-provider-payment',
+        amount: new Prisma.Decimal('150.00'),
+        currency: 'CAD',
+        status: PaymentStatus.PROCESSING,
+        idempotencyKey:
+            `order-processing-sync:${PaymentPurpose.RENT_DEPOSIT}`,
+        metadata: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus(providerPaymentId) {
+            getStatusCalls += 1;
+            assert.equal(providerPaymentId, 'existing-processing-sync-provider-payment');
+
+            return {
+                provider: 'stripe',
+                providerPaymentId,
+                status: PaymentStatus.AUTHORIZED,
+                metadata: null,
+            };
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-processing-sync',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount: new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeRentalDeposit(
+                        'order-processing-sync',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(result.clientSecret, null);
+                assert.equal(authorizeCalls, 0);
+                assert.equal(getStatusCalls, 1);
+
+                const payment = harness.state.byId.get(existing.id);
+                assert.equal(payment.status, PaymentStatus.AUTHORIZED);
+                assert.equal(
+                    Object.prototype.hasOwnProperty.call(
+                        payment,
+                        'clientSecret'
+                    ),
+                    false
+                );
+            }
+        );
+    });
+});
+
+test('existing AUTHORIZED rental deposit is idempotent', async () => {
+    const harness = createCheckoutPaymentHarness();
+
+    let authorizeCalls = 0;
+    let getStatusCalls = 0;
+
+    const existing = harness.store({
+        id: 'deposit-authorized-existing',
+        orderId: 'order-authorized-existing',
+        purpose: PaymentPurpose.RENT_DEPOSIT,
+        provider: 'stripe',
+        providerPaymentId: 'existing-authorized-provider-payment',
+        amount: new Prisma.Decimal('150.00'),
+        currency: 'CAD',
+        status: PaymentStatus.AUTHORIZED,
+        idempotencyKey:
+            `order-authorized-existing:${PaymentPurpose.RENT_DEPOSIT}`,
+        metadata: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    });
+
+    const provider = {
+        name: 'stripe',
+
+        async authorize() {
+            authorizeCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async capture() {
+            throw new Error('not used');
+        },
+
+        async cancel() {
+            throw new Error('not used');
+        },
+
+        async refund() {
+            throw new Error('not used');
+        },
+
+        async getStatus() {
+            getStatusCalls += 1;
+            throw new Error('provider should not be called');
+        },
+
+        async verifyWebhook() {
+            throw new Error('not used');
+        },
+    };
+
+    await withOrderStubs({
+        findOrderById: async () => ({
+            id: 'order-authorized-existing',
+            buyerId: 'buyer-1',
+            sellerId: 'seller-1',
+            transactionType: 'RENT',
+
+            unitPrice: new Prisma.Decimal('150.00'),
+            quantity: 1,
+
+            currency: 'CAD',
+            subtotal: new Prisma.Decimal('450.00'),
+
+            rentalDays: 3,
+            rentalDepositAmount: new Prisma.Decimal('150.00'),
+        }),
+    }, async () => {
+        await withPaymentStubs(
+            harness.stubs,
+            async () => {
+                const result =
+                    await paymentService.authorizeRentalDeposit(
+                        'order-authorized-existing',
+                        'buyer-1',
+                        provider
+                    );
+
+                assert.equal(
+                    result.id,
+                    existing.id
+                );
+
+                assert.equal(
+                    result.status,
+                    PaymentStatus.AUTHORIZED
+                );
+
+                assert.equal(result.clientSecret, null);
+                assert.equal(authorizeCalls, 0);
+                assert.equal(getStatusCalls, 0);
+
+                const payment = harness.state.byId.get(existing.id);
+                assert.equal(payment.status, PaymentStatus.AUTHORIZED);
+                assert.equal(
+                    Object.prototype.hasOwnProperty.call(
+                        payment,
+                        'clientSecret'
+                    ),
+                    false
+                );
             }
         );
     });
@@ -1156,6 +1678,7 @@ test('repeated rental deposit authorization returns the existing authorized depo
                 const result =
                     await paymentService.authorizeRentalDeposit(
                         'order-repeat-deposit',
+                        'buyer-1',
                         provider
                     );
 

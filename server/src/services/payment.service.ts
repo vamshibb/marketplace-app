@@ -539,8 +539,8 @@ export const authorizeOrderPayment = async (
         order.transactionType === ListingType.SALE
             ? PaymentPurpose.SALE
             : order.transactionType === ListingType.RENT
-              ? PaymentPurpose.RENT
-              : null;
+                ? PaymentPurpose.RENT
+                : null;
 
     if (!purpose) {
         throw new AppError(
@@ -782,12 +782,21 @@ export const settleCancelledOrderPayment = async (
 
 export const authorizeRentalDeposit = async (
     orderId: string,
-    paymentProvider: PaymentProvider
+    buyerId: string,
+    paymentProvider: PaymentProvider =
+        getConfiguredPaymentProvider()
 ) => {
     const order = await orderRepository.findOrderById(orderId);
 
     if (!order) {
         throw new AppError("Order not found", 404);
+    }
+
+    if (order.buyerId !== buyerId) {
+        throw new AppError(
+            "You are not authorized to perform this action.",
+            403
+        );
     }
 
     if (order.transactionType !== ListingType.RENT) {
@@ -844,7 +853,25 @@ export const authorizeRentalDeposit = async (
         deposit.status === PaymentStatus.AUTHORIZED ||
         deposit.status === PaymentStatus.CAPTURED
     ) {
-        return deposit;
+        return {
+            ...deposit,
+            clientSecret: null,
+        };
+    }
+
+    if (deposit.status === PaymentStatus.PROCESSING) {
+        if (!deposit.providerPaymentId) {
+            throw new AppError(
+                "Processing rental deposit is missing its provider payment reference.",
+                409
+            );
+        }
+
+        return syncPaymentStatus(
+            deposit.id,
+            paymentProvider,
+            deposit.providerPaymentId
+        );
     }
 
     if (deposit.status !== PaymentStatus.PENDING) {
