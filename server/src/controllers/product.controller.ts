@@ -17,18 +17,26 @@ export const createProduct = async (
       title,
       description,
       price,
-      categoryId, listingType, quantityAvailable, minRentalDays, maxRentalDays,
+      categoryId,
+      listingType,
+      quantityAvailable,
+      minRentalDays,
+      maxRentalDays,
+      rentalDepositUnitAmount,
     } = req.body;
 
-    const product =
-      await productService.createProduct({
+    const product = await productService.createProduct({
       title,
       description,
       price: Number(price),
       categoryId,
       sellerId: req.user!.id,
-      listingType, quantityAvailable, minRentalDays, maxRentalDays,
-      });
+      listingType,
+      quantityAvailable,
+      minRentalDays,
+      maxRentalDays,
+      rentalDepositUnitAmount,
+    });
 
     return res
       .status(201)

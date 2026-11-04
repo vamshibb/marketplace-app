@@ -2,7 +2,8 @@ import { findOverlappingRentalReservations, findOverlappingAvailabilityBlocks } 
 import { calculateRentalAvailability } from "../utils/rentalAvailability";
 import { userSummarySelect } from "./user.select";
 import {
-  OrderStatus,
+  OrderStatus, PaymentPurpose,
+  PaymentStatus,
   Prisma,
 } from "../generated/prisma";
 import { prisma } from "../prisma/client";
@@ -323,6 +324,95 @@ export const updateOrderStatus = async (
     }
     throw error;
   }
+};
+
+export const startRentalAtomically = async (
+  orderId: string,
+  sellerId: string
+) => {
+  return prisma.$transaction(
+    async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        select: orderSelect,
+      });
+
+      if (
+        !order ||
+        order.transactionType !== "RENT" ||
+        order.status !== OrderStatus.ACCEPTED ||
+        order.sellerId !== sellerId
+      ) {
+        return { kind: "conflict" as const };
+      }
+
+      const readyStatuses: PaymentStatus[] = [
+        PaymentStatus.AUTHORIZED,
+        PaymentStatus.CAPTURED,
+      ];
+
+      const mainPaymentReady = order.payments.some(
+        (payment) =>
+          payment.purpose === PaymentPurpose.RENT &&
+          readyStatuses.includes(payment.status)
+      );
+
+      if (!mainPaymentReady) {
+        return { kind: "main-payment-required" as const };
+      }
+
+      const depositRequired =
+        order.rentalDepositAmount !== null &&
+        Number(order.rentalDepositAmount) > 0;
+
+      const depositReady =
+        !depositRequired ||
+        order.payments.some(
+          (payment) =>
+            payment.purpose === PaymentPurpose.RENT_DEPOSIT &&
+            readyStatuses.includes(payment.status)
+        );
+
+      if (!depositReady) {
+        return { kind: "deposit-required" as const };
+      }
+
+      const updated = await tx.order.updateMany({
+        where: {
+          id: orderId,
+          sellerId,
+          transactionType: "RENT",
+          status: OrderStatus.ACCEPTED,
+        },
+        data: {
+          status: OrderStatus.ACTIVE,
+        },
+      });
+
+      if (updated.count !== 1) {
+        return { kind: "conflict" as const };
+      }
+
+      const startedOrder = await tx.order.findUnique({
+        where: { id: orderId },
+        select: orderSelect,
+      });
+
+      if (!startedOrder) {
+        return { kind: "conflict" as const };
+      }
+
+      return {
+        kind: "started" as const,
+        order: startedOrder,
+      };
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 15_000,
+    }
+  );
 };
 
 export { findOverlappingRentalReservations } from "./rentalInventory.repository";

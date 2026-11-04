@@ -460,7 +460,36 @@ export const transitionRental = async (
 
   let updated;
 
-  if (action === "confirm-return") {
+  if (action === "start") {
+    const result =
+      await orderRepository.startRentalAtomically(
+        orderId,
+        userId
+      );
+
+    if (result.kind === "main-payment-required") {
+      throw new AppError(
+        "Rental payment must be authorized before starting the rental.",
+        409
+      );
+    }
+
+    if (result.kind === "deposit-required") {
+      throw new AppError(
+        "Rental security deposit must be authorized before starting the rental.",
+        409
+      );
+    }
+
+    if (result.kind === "conflict") {
+      throw new AppError(
+        "Rental state changed concurrently. Please refresh and try again.",
+        409
+      );
+    }
+
+    updated = result.order;
+  } else if (action === "confirm-return") {
     const result =
       await orderRepository.confirmRentalReturnAtomically(
         orderId,
