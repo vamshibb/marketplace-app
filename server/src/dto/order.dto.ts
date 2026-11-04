@@ -60,6 +60,7 @@ export interface OrderDTO {
   rentalDepositAmount: string | null;
 
   paymentStatus: PaymentStatus | null;
+  rentalDepositPaymentStatus: PaymentStatus | null;
 
   product: OrderProductSummary;
   buyer: UserSummary;
@@ -87,6 +88,12 @@ export const toOrderDTO = (
         payment.purpose === mainPaymentPurpose
     )?.status ?? null;
 
+  const rentalDepositPaymentStatus =
+  order.payments.find(
+    payment =>
+      payment.purpose === PaymentPurpose.RENT_DEPOSIT
+  )?.status ?? null;
+
   return {
     id: order.id,
     status: order.status,
@@ -101,6 +108,7 @@ export const toOrderDTO = (
       order.rentalDepositAmount?.toString() ?? null,
 
     paymentStatus,
+    rentalDepositPaymentStatus,
 
     product: order.product,
     buyer: order.buyer,

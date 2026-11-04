@@ -8,7 +8,7 @@ import type { ProductFormValues } from "../schemas/productSchema";
 
 const initialValues: ProductFormInitialValues = {
   title: "", description: "", price: undefined, categoryId: "",
-  listingType: "SALE", quantityAvailable: 1, minRentalDays: null, maxRentalDays: null,
+  listingType: "SALE", quantityAvailable: 1, minRentalDays: null, maxRentalDays: null, rentalDepositUnitAmount: null,
 };
 
 export const CreateProductPage = () => {

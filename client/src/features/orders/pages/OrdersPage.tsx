@@ -5,7 +5,10 @@ import toast from "react-hot-toast";
 import { useCurrentUserQuery } from "../../auth";
 import { useOrderQuery } from "../hooks/useOrderQuery";
 import { useOrdersQuery } from "../hooks/useOrdersQuery";
-import { useAuthorizeOrderPaymentMutation } from "../hooks/useOrderActionMutation";
+import {
+  useAuthorizeOrderPaymentMutation,
+  useAuthorizeRentalDepositMutation,
+} from "../hooks/useOrderActionMutation";
 import { ordersQueryKeys } from "../queryKeys";
 import { OrderCard } from "../components/OrderCard";
 import type { OrderRole } from "../types";
@@ -18,6 +21,7 @@ export const OrdersPage = () => {
   const orderId = params.get("orderId") ?? "";
   const role: OrderRole = params.get("tab") === "sales" ? "seller" : "buyer";
   const authorizeOrderPayment = useAuthorizeOrderPaymentMutation(orderId);
+  const authorizeRentalDeposit = useAuthorizeRentalDepositMutation(orderId);
   const paymentReturnSync = useRef<string | null>(null);
   const setRole = (value: OrderRole) => setParams(previous => {
     const next = new URLSearchParams(previous);
@@ -40,19 +44,23 @@ export const OrdersPage = () => {
     const paymentReturn = params.get("paymentReturn");
     const userId = user?.id;
 
-    if (paymentReturn !== "1" || !orderId || !userId) {
+    if ((!paymentReturn || (paymentReturn !== "1" && paymentReturn !== "deposit")) || !orderId || !userId) {
       paymentReturnSync.current = null;
       return;
     }
 
-    const syncKey = `${userId}:${orderId}`;
+    const syncKey = `${userId}:${orderId}:${paymentReturn}`;
     if (paymentReturnSync.current === syncKey) {
       return;
     }
 
     paymentReturnSync.current = syncKey;
 
-    void authorizeOrderPayment.mutateAsync()
+    const syncMutation = paymentReturn === "deposit"
+      ? authorizeRentalDeposit
+      : authorizeOrderPayment;
+
+    void syncMutation.mutateAsync()
       .then(async () => {
         await Promise.all([
           queryClient.invalidateQueries({
@@ -75,7 +83,7 @@ export const OrdersPage = () => {
       .catch(() => {
         // Leave the return state available so the user can retry or reload.
       });
-  }, [authorizeOrderPayment, orderId, params, queryClient, setParams, user]);
+  }, [authorizeOrderPayment, authorizeRentalDeposit, orderId, params, queryClient, setParams, user]);
   useEffect(() => {
     if (!orderId || (!detail.isError && !wrongRole) || failed.current === orderId) return;
     failed.current = orderId;

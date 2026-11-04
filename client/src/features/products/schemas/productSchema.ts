@@ -5,7 +5,11 @@ export const productSchema = z.object({
   quantityAvailable: z.number({ error: "Quantity available is required" }).int("Quantity must be a whole number").min(1, "Quantity must be at least 1"),
   minRentalDays: z.number().int("Minimum days must be a whole number").min(1, "Minimum days must be at least 1").nullable().optional(),
   maxRentalDays: z.number().int("Maximum days must be a whole number").min(1, "Maximum days must be at least 1").nullable().optional(),
-  title: z
+  rentalDepositUnitAmount: z
+    .number({ error: "Security deposit must be a number" })
+    .nonnegative("Security deposit must be zero or greater")
+    .nullable()
+    .optional(), title: z
     .string()
     .trim()
     .min(1, "Title is required")
@@ -18,7 +22,7 @@ export const productSchema = z.object({
   price: z.number({
     error: "Price is required",
   })
-  .positive("Price must be a positive number"),
+    .positive("Price must be a positive number"),
   categoryId: z.string().trim().min(1, "Category ID is required"),
 }).superRefine((values, context) => {
   if (values.listingType === "RENT" && values.minRentalDays != null && values.maxRentalDays != null && values.maxRentalDays < values.minRentalDays) {

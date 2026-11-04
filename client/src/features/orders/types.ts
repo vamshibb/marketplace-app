@@ -18,10 +18,16 @@ export interface Order {
   transactionType: "SALE" | "RENT";
   quantity: number;
   unitPrice: string;
+
+  paymentStatus: PaymentStatus | null;
+
+  rentalDepositAmount: string | null;
+  rentalDepositPaymentStatus: PaymentStatus | null;
+
   product: { id: string; title: string };
   buyer: UserSummary;
   seller: UserSummary;
-  paymentStatus: PaymentStatus | null;
+
   requestedFrom: string | null;
   requestedTo: string | null;
   notes: string | null;

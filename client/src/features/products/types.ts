@@ -7,6 +7,7 @@ export interface ListingSettings {
   quantityAvailable: number;
   minRentalDays?: number | null;
   maxRentalDays?: number | null;
+  rentalDepositUnitAmount?: number | null;
 }
 
 export interface ProductCategory {

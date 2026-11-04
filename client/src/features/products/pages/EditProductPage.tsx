@@ -46,6 +46,7 @@ const EditProductEditor = ({ product }: { product: ProductDetail }): ReactElemen
       categoryId: product.categoryId ?? "", listingType: product.listingType,
       quantityAvailable: product.quantityAvailable,
       minRentalDays: product.minRentalDays ?? null, maxRentalDays: product.maxRentalDays ?? null,
+      rentalDepositUnitAmount: product.rentalDepositUnitAmount ?? null,
     }}
     onSubmit={onSubmit}
     isPending={update.isPending}

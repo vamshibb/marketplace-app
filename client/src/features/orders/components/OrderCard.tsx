@@ -3,7 +3,10 @@ import { isAxiosError } from "axios";
 import { BuyerReputation, OrderReviews } from "../../reviews";
 import { Link } from "react-router-dom";
 import { Button } from "../../../shared/ui/Button";
-import { useAuthorizeOrderPaymentMutation } from "../hooks/useOrderActionMutation";
+import {
+  useAuthorizeOrderPaymentMutation,
+  useAuthorizeRentalDepositMutation,
+} from "../hooks/useOrderActionMutation";
 import type { Order, OrderRole } from "../types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { OrderActions } from "./OrderActions";
@@ -41,8 +44,24 @@ export const OrderCard = ({
   const [paymentMessage, setPaymentMessage] =
     useState<string | null>(null);
 
+  const [rentalDepositStatus, setRentalDepositStatus] =
+    useState<string | null>(order.rentalDepositPaymentStatus);
+
+  useEffect(() => {
+    setRentalDepositStatus(order.rentalDepositPaymentStatus);
+  }, [order.rentalDepositPaymentStatus]);
+
+  const [rentalDepositClientSecret, setRentalDepositClientSecret] =
+    useState<string | null>(null);
+
+  const [rentalDepositMessage, setRentalDepositMessage] =
+    useState<string | null>(null);
+
   const authorizeOrderPayment =
     useAuthorizeOrderPaymentMutation(order.id);
+
+  const authorizeRentalDeposit =
+    useAuthorizeRentalDepositMutation(order.id);
 
   const from = order.requestedFrom?.slice(0, 10);
   const to = order.requestedTo?.slice(0, 10);
@@ -150,6 +169,92 @@ export const OrderCard = ({
       throw error;
     }
   };
+
+  const handleAuthorizeRentalDeposit = async () => {
+    setRentalDepositMessage(null);
+
+    try {
+      const authorization =
+        await authorizeRentalDeposit.mutateAsync();
+
+      setRentalDepositStatus(
+        authorization.payment.status
+      );
+
+      setRentalDepositClientSecret(
+        authorization.clientSecret
+      );
+
+      if (
+        authorization.payment.status ===
+        "AUTHORIZED" ||
+        authorization.payment.status ===
+        "CAPTURED"
+      ) {
+        setRentalDepositClientSecret(null);
+      }
+    } catch (error) {
+      const message =
+        isAxiosError(error) &&
+          typeof error.response?.data?.message ===
+          "string"
+          ? error.response.data.message
+          : error instanceof Error
+            ? error.message
+            : "Rental deposit unavailable.";
+
+      setRentalDepositMessage(message);
+    }
+  };
+
+  const handleRentalDepositConfirmed = async () => {
+    setRentalDepositMessage(null);
+
+    try {
+      const authorization =
+        await authorizeRentalDeposit.mutateAsync();
+
+      setRentalDepositStatus(
+        authorization.payment.status
+      );
+
+      if (
+        authorization.payment.status ===
+        "AUTHORIZED" ||
+        authorization.payment.status ===
+        "CAPTURED"
+      ) {
+        setRentalDepositClientSecret(null);
+        return;
+      }
+
+      setRentalDepositClientSecret(
+        authorization.clientSecret
+      );
+    } catch (error) {
+      const message =
+        isAxiosError(error) &&
+          typeof error.response?.data?.message ===
+          "string"
+          ? error.response.data.message
+          : error instanceof Error
+            ? error.message
+            : "Unable to verify rental deposit authorization.";
+
+      setRentalDepositMessage(message);
+
+      throw error;
+    }
+  };
+
+  const requiresRentalDeposit =
+    isRental &&
+    order.rentalDepositAmount !== null &&
+    Number(order.rentalDepositAmount) > 0;
+
+  const canAuthorizeRentalDeposit =
+    order.status === "ACCEPTED" ||
+    order.status === "ACTIVE";
 
   return (
     <article className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -335,6 +440,73 @@ export const OrderCard = ({
           </div>
         )}
 
+      {role === "buyer" &&
+        isRental &&
+        requiresRentalDeposit && (
+          <div className="space-y-3 border-t border-slate-100 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-medium text-slate-700">
+                  Rental deposit
+                </h3>
+
+                <p className="text-xs text-slate-500">
+                  {`${formatPrice(Number(order.rentalDepositAmount))} · ${rentalDepositStatus
+                      ? `Status: ${rentalDepositStatus}`
+                      : canAuthorizeRentalDeposit
+                        ? "Authorization required"
+                        : "Available after seller accepts"
+                    }`}
+                </p>
+              </div>
+
+              {canAuthorizeRentalDeposit &&
+                !rentalDepositClientSecret && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    isLoading={authorizeRentalDeposit.isPending}
+                    disabled={
+                      rentalDepositStatus === "AUTHORIZED" ||
+                      rentalDepositStatus === "CAPTURED" ||
+                      rentalDepositStatus === "CANCELLED"
+                    }
+                    onClick={() => {
+                      void handleAuthorizeRentalDeposit();
+                    }}
+                  >
+                    {rentalDepositStatus === "AUTHORIZED"
+                      ? "AUTHORIZED"
+                      : rentalDepositStatus === "CAPTURED"
+                        ? "CAPTURED"
+                        : rentalDepositStatus === "CANCELLED"
+                          ? "RELEASED"
+                          : rentalDepositStatus === "PROCESSING"
+                            ? "Resume Deposit"
+                            : "Authorize Deposit"}
+                  </Button>
+                )}
+            </div>
+
+            {canAuthorizeRentalDeposit &&
+              rentalDepositClientSecret && (
+                <OrderPaymentForm
+                  orderId={order.id}
+                  clientSecret={rentalDepositClientSecret}
+                  onConfirmed={handleRentalDepositConfirmed}
+                  paymentKind="deposit"
+                  submitLabel="Authorize deposit"
+                />
+              )}
+
+            {rentalDepositMessage && (
+              <p className="text-xs text-red-600">
+                {rentalDepositMessage}
+              </p>
+            )}
+          </div>
+        )}
       {order.notes?.trim() && (
         <div className="space-y-1 border-t border-slate-100 pt-3 text-sm">
           <h3 className="font-medium text-slate-700">

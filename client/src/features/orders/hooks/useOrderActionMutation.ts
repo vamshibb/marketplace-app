@@ -2,7 +2,7 @@ import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-quer
 import { isAxiosError } from "axios";
 import toast from "react-hot-toast";
 import { useAuthStore, useCurrentUserQuery } from "../../auth";
-import { authorizeOrderPayment, updateOrderStatus } from "../api/orderApi";
+import { authorizeOrderPayment, authorizeRentalDeposit, updateOrderStatus } from "../api/orderApi";
 import { ordersQueryKeys } from "../queryKeys";
 import type { Order, OrderAction } from "../types";
 
@@ -82,6 +82,58 @@ export const useAuthorizeOrderPaymentMutation = (orderId: string) => {
           : error instanceof Error
             ? error.message
             : "Payment unavailable.";
+
+      toast.error(backendMessage);
+    },
+  });
+};
+
+export const useAuthorizeRentalDepositMutation = (
+  orderId: string
+) => {
+  const { data: user } = useCurrentUserQuery();
+
+  const mutationKey = [
+    "orders",
+    user?.id,
+    "rental-deposit",
+    orderId,
+  ] as const;
+
+  return useMutation({
+    mutationKey,
+
+    mutationFn: async () => {
+      const token =
+        useAuthStore.getState().token;
+
+      if (!token || !user) {
+        throw new Error(
+          "Please sign in to authorize the rental deposit."
+        );
+      }
+
+      return authorizeRentalDeposit(orderId);
+    },
+
+    onSuccess: ({ payment }) => {
+      toast.success(
+        `Deposit status: ${payment.status}`
+      );
+    },
+
+    onError: (error) => {
+      const message: unknown =
+        isAxiosError(error)
+          ? error.response?.data?.message
+          : undefined;
+
+      const backendMessage =
+        typeof message === "string"
+          ? message
+          : error instanceof Error
+            ? error.message
+            : "Rental deposit unavailable.";
 
       toast.error(backendMessage);
     },

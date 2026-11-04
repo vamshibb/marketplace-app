@@ -68,6 +68,18 @@ export const authorizeOrderPayment = async (
   return response.data.data;
 };
 
+export const authorizeRentalDeposit = async (
+  orderId: string
+): Promise<OrderPaymentAuthorization> => {
+  const response = await api.post<
+    ApiResponse<OrderPaymentAuthorization>
+  >(
+    `/orders/${encodeURIComponent(orderId)}/payments/deposit/authorize`
+  );
+
+  return response.data.data;
+};
+
 export const openRentalDispute = async (
   orderId: string,
   reason: string,

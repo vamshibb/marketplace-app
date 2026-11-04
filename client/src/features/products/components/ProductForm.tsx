@@ -57,13 +57,13 @@ export const ProductForm = ({
   });
   const listingType = useWatch({ control, name: "listingType" });
   const { title, description, price, categoryId, listingType: initialListingType,
-    quantityAvailable, minRentalDays, maxRentalDays } = initialValues;
+    quantityAvailable, minRentalDays, maxRentalDays, rentalDepositUnitAmount } = initialValues;
 
   useEffect(() => {
     reset({ title, description, price, categoryId, listingType: initialListingType,
-      quantityAvailable, minRentalDays, maxRentalDays });
+      quantityAvailable, minRentalDays, maxRentalDays, rentalDepositUnitAmount });
   }, [title, description, price, categoryId, initialListingType,
-    quantityAvailable, minRentalDays, maxRentalDays, reset]);
+    quantityAvailable, minRentalDays, maxRentalDays, rentalDepositUnitAmount, reset]);
 
   return (
     <>
@@ -77,6 +77,7 @@ export const ProductForm = ({
         ...values,
         minRentalDays: values.listingType === "SALE" ? null : values.minRentalDays ?? null,
         maxRentalDays: values.listingType === "SALE" ? null : values.maxRentalDays ?? null,
+        rentalDepositUnitAmount: values.listingType === "SALE" ? null : values.rentalDepositUnitAmount ?? null,
       }))}>
         <div className={mediaPanel ? "grid items-start gap-5 lg:grid-cols-2 lg:items-stretch" : undefined}>
         <fieldset disabled={isPending || detailsDisabled} className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm [&_label]:mb-1.5 [&_label]:block [&_label]:text-sm [&_label]:font-medium [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:border-slate-300 [&_input]:px-3 [&_input]:py-2.5 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:border-slate-300 [&_select]:px-3 [&_select]:py-2.5 [&_textarea]:min-h-36 [&_textarea]:w-full [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-slate-300 [&_textarea]:px-3 [&_textarea]:py-2.5 [&_p]:text-sm [&_p]:text-red-600">
@@ -91,7 +92,8 @@ export const ProductForm = ({
                 if (type === "SALE") {
                   setValue("minRentalDays", null);
                   setValue("maxRentalDays", null);
-                  clearErrors(["minRentalDays", "maxRentalDays"]);
+                  setValue("rentalDepositUnitAmount", null);
+                  clearErrors(["minRentalDays", "maxRentalDays", "rentalDepositUnitAmount"]);
                 }
               }}>{type === "SALE" ? "For Sale" : "For Rent"}</button>
           ))}
@@ -161,6 +163,28 @@ export const ProductForm = ({
             </p>
           )}
         </div>
+
+        {listingType === "RENT" && (
+          <div>
+            <label htmlFor="rentalDepositUnitAmount">Security deposit per unit (optional)</label>
+            <input
+              id="rentalDepositUnitAmount"
+              type="number"
+              min={0}
+              step="0.01"
+              aria-invalid={Boolean(errors.rentalDepositUnitAmount)}
+              aria-describedby={errors.rentalDepositUnitAmount ? "rental-deposit-error" : undefined}
+              {...register("rentalDepositUnitAmount", {
+                setValueAs: (value) => value === "" || value === null || value === undefined ? null : Number(value),
+              })}
+            />
+            {errors.rentalDepositUnitAmount && (
+              <p id="rental-deposit-error" role="alert">
+                {errors.rentalDepositUnitAmount.message}
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <label htmlFor="quantityAvailable">Quantity available</label>

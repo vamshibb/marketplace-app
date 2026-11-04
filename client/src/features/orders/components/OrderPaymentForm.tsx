@@ -18,11 +18,15 @@ const stripePromise = publishableKey
 type PaymentFormProps = {
   orderId: string;
   onConfirmed: () => Promise<void>;
+  paymentKind?: "payment" | "deposit";
+  submitLabel?: string;
 };
 
 const PaymentForm = ({
   orderId,
   onConfirmed,
+  paymentKind = "payment",
+  submitLabel = "Authorize payment",
 }: PaymentFormProps) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -57,7 +61,9 @@ const PaymentForm = ({
       );
       returnUrl.searchParams.set(
         "paymentReturn",
-        "1"
+        paymentKind === "deposit"
+          ? "deposit"
+          : "1"
       );
 
       const { error } =
@@ -112,7 +118,7 @@ const PaymentForm = ({
         isLoading={isSubmitting}
         disabled={!stripe || !elements}
       >
-        Authorize payment
+        {submitLabel}
       </Button>
     </form>
   );
@@ -122,12 +128,16 @@ type OrderPaymentFormProps = {
   orderId: string;
   clientSecret: string;
   onConfirmed: () => Promise<void>;
+  paymentKind?: "payment" | "deposit";
+  submitLabel?: string;
 };
 
 export const OrderPaymentForm = ({
   orderId,
   clientSecret,
   onConfirmed,
+  paymentKind = "payment",
+  submitLabel = "Authorize payment",
 }: OrderPaymentFormProps) => {
   if (!stripePromise) {
     return (
@@ -147,6 +157,8 @@ export const OrderPaymentForm = ({
       <PaymentForm
         orderId={orderId}
         onConfirmed={onConfirmed}
+        paymentKind={paymentKind}
+        submitLabel={submitLabel}
       />
     </Elements>
   );
