@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { useCurrentUserQuery } from "../../auth";
 import { useOrderQuery } from "../hooks/useOrderQuery";
 import { useOrdersQuery } from "../hooks/useOrdersQuery";
+import { useOrdersRealtime } from "../hooks/useOrdersRealtime";
 import {
   useAuthorizeOrderPaymentMutation,
   useAuthorizeRentalDepositMutation,
@@ -18,6 +19,7 @@ export const OrdersPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUserQuery();
+  useOrdersRealtime(user?.id);
   const orderId = params.get("orderId") ?? "";
   const role: OrderRole = params.get("tab") === "sales" ? "seller" : "buyer";
   const authorizeOrderPayment = useAuthorizeOrderPaymentMutation(orderId);
