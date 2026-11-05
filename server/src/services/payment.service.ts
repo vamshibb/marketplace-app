@@ -9,6 +9,7 @@ import type {
     VerifiedPaymentWebhookEvent,
 } from "./paymentProvider";
 import { getConfiguredPaymentProvider } from "./paymentProvider";
+import { publishOrderChanged } from "../utils/userRealtimePublisher";
 
 export type PaymentAmountInput = string | Prisma.Decimal;
 export type PaymentMetadataObject = Prisma.InputJsonObject;
@@ -386,6 +387,12 @@ export const processWebhookEvent = async (
             } as PaymentMetadataObject) as Prisma.PaymentUncheckedUpdateInput["metadata"],
         });
 
+        publishOrderChanged(
+            processed.payment.order?.buyerId,
+            processed.payment.order?.sellerId,
+            processed.payment.orderId,
+        );
+
         return {
             acknowledged: true,
             idempotent: false,
@@ -501,11 +508,19 @@ const updatePaymentWithTransition = async (
     const metadataValue = mergedMetadata === undefined ? undefined : mergedMetadata ?? Prisma.DbNull;
 
     try {
-        return await paymentRepository.updatePaymentStatus(payment.id, nextStatus, {
+        const updatedPayment = await paymentRepository.updatePaymentStatus(payment.id, nextStatus, {
             provider: providerData?.provider ?? payment.provider,
             providerPaymentId: providerData?.providerPaymentId ?? payment.providerPaymentId,
             metadata: providerData?.metadata ?? metadataValue,
         });
+
+        publishOrderChanged(
+            updatedPayment.order?.buyerId,
+            updatedPayment.order?.sellerId,
+            updatedPayment.orderId,
+        );
+
+        return updatedPayment;
     } catch (error: any) {
         if (error?.code === "P2002") {
             throw new AppError("A payment with the same provider transaction identity already exists.", 409);

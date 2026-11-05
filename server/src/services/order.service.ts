@@ -13,6 +13,7 @@ import * as orderRepository from "../repositories/order.repository";
 import * as productRepository from "../repositories/product.repository";
 import * as notificationService from "./notification.service";
 import * as paymentService from "./payment.service";
+import { publishOrderChanged } from "../utils/userRealtimePublisher";
 
 type OrderRecord = NonNullable<
   Awaited<
@@ -73,6 +74,14 @@ const ensureSeller = (
       403
     );
   }
+};
+
+const emitOrderChanged = (
+  orderId: string,
+  buyerId: string,
+  sellerId: string,
+) => {
+  publishOrderChanged(buyerId, sellerId, orderId);
 };
 
 const ensurePendingOrder = (
@@ -302,6 +311,7 @@ export const acceptOrder = async (
     updatedOrder = result.order;
   }
   if (!updatedOrder) throw new AppError("Only pending orders can be accepted.", 409);
+  emitOrderChanged(updatedOrder.id, updatedOrder.buyerId, updatedOrder.sellerId);
   if (order.transactionType === "RENT") {
     publishAvailabilityChanged(order.productId, "RENTAL_ACCEPTED");
   }
@@ -335,6 +345,8 @@ export const rejectOrder = async (
   );
   if (!updatedOrder) throw new AppError("Only pending orders can be rejected.", 409);
 
+  emitOrderChanged(updatedOrder.id, updatedOrder.buyerId, updatedOrder.sellerId);
+
   const seller = await ensureUserExists(sellerId);
 
   await notificationService.notifyOrderRejected({
@@ -363,6 +375,8 @@ export const cancelOrder = async (
     { buyerId }
   );
   if (!updatedOrder) throw new AppError("Only pending orders can be cancelled.", 409);
+
+  emitOrderChanged(updatedOrder.id, updatedOrder.buyerId, updatedOrder.sellerId);
 
   return toOrderDTO(updatedOrder);
 };
@@ -413,6 +427,8 @@ export const completeOrder = async (orderId: string, buyerId: string) => {
     orderId, OrderStatus.COMPLETED, OrderStatus.ACCEPTED, { buyerId }, "SALE"
   );
   if (!updatedOrder) throw new AppError("Only accepted orders can be completed.", 409);
+
+  emitOrderChanged(updatedOrder.id, updatedOrder.buyerId, updatedOrder.sellerId);
 
   await notificationService.notifyOrderCompleted({
     recipientId: updatedOrder.sellerId,
@@ -531,6 +547,8 @@ export const transitionRental = async (
       );
     }
   }
+
+  emitOrderChanged(updated.id, updated.buyerId, updated.sellerId);
 
   if (action === "confirm-return") {
     publishAvailabilityChanged(

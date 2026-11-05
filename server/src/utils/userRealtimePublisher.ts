@@ -4,11 +4,13 @@ export type UserRealtimeEvent =
   | { type: "message_created"; data: { conversationId: string; messageId: string; senderId: string } }
   | { type: "conversation_read_changed"; data: { conversationId: string; userId: string; lastReadMessageId: string | null } }
   | { type: "notification_created"; data: { notificationId: string } }
-  | { type: "notification_read_changed"; data:
+  | {
+    type: "notification_read_changed"; data:
       | { scope: "notification"; notificationId: string }
       | { scope: "conversation"; conversationId: string }
       | { scope: "all" }
-    };
+  }
+  | { type: "order_changed"; data: { orderId: string } };
 
 export const createUserRealtimePublisher = (heartbeatMs = 25_000) => {
   const publisher = createScopedSsePublisher({
@@ -34,5 +36,20 @@ export const publishUserEvent = (userId: string, event: UserRealtimeEvent): void
     userRealtimePublisher.publish(userId, event);
   } catch {
     // Never turn a successful mutation into an error because delivery failed.
+  }
+};
+
+export const publishOrderChanged = (
+  buyerId: string | null | undefined,
+  sellerId: string | null | undefined,
+  orderId: string,
+): void => {
+  const userIds = Array.from(new Set([buyerId, sellerId].filter((userId): userId is string => Boolean(userId && userId.trim()))));
+
+  for (const userId of userIds) {
+    publishUserEvent(userId, {
+      type: "order_changed",
+      data: { orderId },
+    });
   }
 };
