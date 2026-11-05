@@ -12,6 +12,7 @@ import * as authRepository from "../repositories/auth.repository";
 import * as orderRepository from "../repositories/order.repository";
 import * as productRepository from "../repositories/product.repository";
 import * as notificationService from "./notification.service";
+import * as paymentService from "./payment.service";
 
 type OrderRecord = NonNullable<
   Awaited<
@@ -461,6 +462,8 @@ export const transitionRental = async (
   let updated;
 
   if (action === "start") {
+    await paymentService.captureRentalPaymentForStart(orderId);
+
     const result =
       await orderRepository.startRentalAtomically(
         orderId,

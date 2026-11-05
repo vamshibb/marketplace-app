@@ -346,15 +346,10 @@ export const startRentalAtomically = async (
         return { kind: "conflict" as const };
       }
 
-      const readyStatuses: PaymentStatus[] = [
-        PaymentStatus.AUTHORIZED,
-        PaymentStatus.CAPTURED,
-      ];
-
       const mainPaymentReady = order.payments.some(
         (payment) =>
           payment.purpose === PaymentPurpose.RENT &&
-          readyStatuses.includes(payment.status)
+          payment.status === PaymentStatus.CAPTURED
       );
 
       if (!mainPaymentReady) {
@@ -370,7 +365,8 @@ export const startRentalAtomically = async (
         order.payments.some(
           (payment) =>
             payment.purpose === PaymentPurpose.RENT_DEPOSIT &&
-            readyStatuses.includes(payment.status)
+            (payment.status === PaymentStatus.AUTHORIZED ||
+              payment.status === PaymentStatus.CAPTURED)
         );
 
       if (!depositReady) {

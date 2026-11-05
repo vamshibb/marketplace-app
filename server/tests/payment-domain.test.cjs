@@ -2,7 +2,7 @@ require('ts-node/register/transpile-only');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { Module } = require('node:module');
-const { Prisma, PaymentStatus, PaymentPurpose, ListingType } = require('../src/generated/prisma');
+const { Prisma, PaymentStatus, PaymentPurpose, ListingType, OrderStatus } = require('../src/generated/prisma');
 
 const orderRepositoryId = require.resolve('../src/repositories/order.repository.ts');
 const paymentRepositoryId = require.resolve('../src/repositories/payment.repository.ts');
@@ -114,6 +114,7 @@ const {
   captureRentalDeposit,
   settleCancelledOrderPayment,
   getSellerPayoutReadiness,
+  captureRentalPaymentForStart,
 } = require('../src/services/payment.service.ts');
 
 const clearState = () => {
@@ -1214,6 +1215,192 @@ test('rental deposit lifecycle uses the existing rental deposit payment for RENT
   assert.ok(releasePaymentRecord.id);
   assert.ok(capturePaymentRecord.id);
 });
+
+test('captureRentalPaymentForStart captures the main RENT payment and leaves the deposit authorized', async () => {
+  clearState();
+
+  const orderId = 'rent-start-capture-order';
+  orders.set(orderId, {
+    id: orderId,
+    buyerId: 'buyer-1',
+    sellerId: 'seller-1',
+    status: 'ACCEPTED',
+    transactionType: ListingType.RENT,
+    currency: 'USD',
+    rentalDepositAmount: new Prisma.Decimal('25.00'),
+  });
+
+  const rentPayment = await createPaymentRecord({
+    orderId,
+    purpose: PaymentPurpose.RENT,
+    amount: '120.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-start-capture-main',
+  });
+  const depositPayment = await createPaymentRecord({
+    orderId,
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '25.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-start-capture-deposit',
+  });
+
+  await paymentRepositoryModule.exports.updatePaymentStatus(rentPayment.id, PaymentStatus.AUTHORIZED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'rent-start-main-ref',
+    metadata: { providerSet: true },
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(depositPayment.id, PaymentStatus.AUTHORIZED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'rent-start-deposit-ref',
+    metadata: { providerSet: true },
+  });
+
+  const captureCalls = [];
+  const provider = {
+    ...mockProvider,
+    capture: async (input) => {
+      captureCalls.push(input.purpose);
+      return mockProvider.capture(input);
+    },
+  };
+
+  const captured = await captureRentalPaymentForStart(orderId, provider);
+
+  assert.equal(captured.id, rentPayment.id);
+  assert.equal(captured.status, PaymentStatus.CAPTURED);
+  assert.deepEqual(captureCalls, [PaymentPurpose.RENT]);
+
+  const depositRecord = await paymentRepositoryModule.exports.findPaymentById(depositPayment.id);
+  assert.equal(depositRecord.status, PaymentStatus.AUTHORIZED);
+});
+
+test('captureRentalPaymentForStart does not capture RENT when required deposit is not authorized', async () => {
+  clearState();
+
+  const orderId = 'rent-start-deposit-not-ready';
+
+  orders.set(orderId, {
+    id: orderId,
+    buyerId: 'buyer-1',
+    sellerId: 'seller-1',
+    status: OrderStatus.ACCEPTED,
+    transactionType: ListingType.RENT,
+    currency: 'USD',
+    rentalDepositAmount: new Prisma.Decimal('25.00'),
+  });
+
+  const rentPayment = await createPaymentRecord({
+    orderId,
+    purpose: PaymentPurpose.RENT,
+    amount: '120.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-start-main-not-captured',
+  });
+
+  const depositPayment = await createPaymentRecord({
+    orderId,
+    purpose: PaymentPurpose.RENT_DEPOSIT,
+    amount: '25.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-start-deposit-pending',
+  });
+
+  await paymentRepositoryModule.exports.updatePaymentStatus(
+    rentPayment.id,
+    PaymentStatus.AUTHORIZED,
+    {
+      provider: 'mock-provider',
+      providerPaymentId: 'rent-start-main-ref',
+      metadata: { providerSet: true },
+    }
+  );
+
+  let captureCalls = 0;
+
+  const provider = {
+    ...mockProvider,
+    capture: async (input) => {
+      captureCalls += 1;
+      return mockProvider.capture(input);
+    },
+  };
+
+  await assert.rejects(
+    captureRentalPaymentForStart(orderId, provider),
+    (error) =>
+      error &&
+      error.statusCode === 409 &&
+      error.message ===
+        'Rental security deposit must be authorized before starting the rental.'
+  );
+
+  assert.equal(captureCalls, 0);
+
+  const mainRecord =
+    await paymentRepositoryModule.exports.findPaymentById(
+      rentPayment.id
+    );
+
+  const depositRecord =
+    await paymentRepositoryModule.exports.findPaymentById(
+      depositPayment.id
+    );
+
+  assert.equal(
+    mainRecord.status,
+    PaymentStatus.AUTHORIZED
+  );
+
+  assert.equal(
+    depositRecord.status,
+    PaymentStatus.PENDING
+  );
+});
+
+test('captureRentalPaymentForStart is retry-safe when the main RENT payment is already captured', async () => {
+  clearState();
+
+  const orderId = 'rent-start-already-captured';
+  orders.set(orderId, {
+    id: orderId,
+    buyerId: 'buyer-1',
+    sellerId: 'seller-1',
+    status: 'ACCEPTED',
+    transactionType: ListingType.RENT,
+    currency: 'USD',
+    rentalDepositAmount: new Prisma.Decimal('0.00'),
+  });
+
+  const rentPayment = await createPaymentRecord({
+    orderId,
+    purpose: PaymentPurpose.RENT,
+    amount: '120.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-start-captured-main',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(rentPayment.id, PaymentStatus.CAPTURED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'rent-start-captured-ref',
+    metadata: { providerSet: true },
+  });
+
+  let captureCalls = 0;
+  const provider = {
+    ...mockProvider,
+    capture: async () => {
+      captureCalls += 1;
+      return mockProvider.capture({ purpose: PaymentPurpose.RENT, orderId, amount: new Prisma.Decimal('120.00'), currency: 'USD', idempotencyKey: 'should-not-run' });
+    },
+  };
+
+  const existing = await captureRentalPaymentForStart(orderId, provider);
+
+  assert.equal(existing.id, rentPayment.id);
+  assert.equal(existing.status, PaymentStatus.CAPTURED);
+  assert.equal(captureCalls, 0);
+});
+
 
 test('provider failure still leaves the previous state unchanged', async () => {
   clearState();

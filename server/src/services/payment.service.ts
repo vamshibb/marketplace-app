@@ -931,6 +931,74 @@ export const captureRentalDeposit = async (
     return capturePayment(deposit.id, paymentProvider);
 };
 
+export const captureRentalPaymentForStart = async (
+    orderId: string,
+    paymentProvider: PaymentProvider = getConfiguredPaymentProvider()
+) => {
+    const order = await orderRepository.findOrderById(orderId);
+
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    if (order.transactionType !== ListingType.RENT) {
+        throw new AppError(
+            "Rental payment capture is only valid for RENT orders.",
+            409
+        );
+    }
+
+    const payment = await paymentRepository.findPaymentByOrderAndPurpose(
+        orderId,
+        PaymentPurpose.RENT
+    );
+
+    if (!payment) {
+        throw new AppError(
+            `Order ${orderId} does not have a RENT payment record.`,
+            409
+        );
+    }
+
+    if (payment.status !== PaymentStatus.AUTHORIZED && payment.status !== PaymentStatus.CAPTURED) {
+        throw new AppError(
+            "Rental payment must be authorized before capture.",
+            409
+        );
+    }
+
+    const depositRequired =
+        order.rentalDepositAmount !== null &&
+        Number(order.rentalDepositAmount) > 0;
+
+    if (depositRequired) {
+        const deposit = await paymentRepository.findPaymentByOrderAndPurpose(
+            orderId,
+            PaymentPurpose.RENT_DEPOSIT
+        );
+
+        const depositReady =
+            deposit &&
+            (
+                deposit.status === PaymentStatus.AUTHORIZED ||
+                deposit.status === PaymentStatus.CAPTURED
+            );
+
+        if (!depositReady) {
+            throw new AppError(
+                "Rental security deposit must be authorized before starting the rental.",
+                409
+            );
+        }
+    }
+
+    if (payment.status === PaymentStatus.CAPTURED) {
+        return payment;
+    }
+
+    return capturePayment(payment.id, paymentProvider);
+};
+
 export const authorizePayment = async (
     paymentId: string,
     paymentProvider: PaymentProvider,
