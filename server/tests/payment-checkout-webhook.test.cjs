@@ -151,6 +151,39 @@ function createCheckoutPaymentHarness() {
 
                 return payment;
             },
+            compareAndSwapPaymentStatus: async (
+                id,
+                expectedStatus,
+                status,
+                data = {}
+            ) => {
+                const payment = state.byId.get(id);
+
+                if (!payment) {
+                    throw new Error('Payment not found');
+                }
+
+                if (payment.status !== expectedStatus) {
+                    return null;
+                }
+
+                payment.status = status;
+
+                if (data.provider !== undefined) {
+                    payment.provider = data.provider;
+                }
+
+                if (data.providerPaymentId !== undefined) {
+                    payment.providerPaymentId = data.providerPaymentId;
+                }
+
+                if (data.metadata !== undefined) {
+                    payment.metadata = data.metadata;
+                }
+
+                payment.updatedAt = new Date();
+                return payment;
+            },
         },
     };
 }
@@ -2071,6 +2104,338 @@ test('retryable webhook failure can be retried without regressing payment state'
         assert.equal(result.retryable, true);
         assert.equal(result.event.status, 'FAILED');
     });
+});
+
+test('stale direct capture and webhook capture cannot both persist the same payment transition', async () => {
+    const userRealtimePublisher = require('../src/utils/userRealtimePublisher.ts');
+    const originalPublishOrderChanged = userRealtimePublisher.publishOrderChanged;
+    const publishCalls = [];
+    userRealtimePublisher.publishOrderChanged = (...args) => {
+        publishCalls.push(args);
+    };
+
+    try {
+        const payment = {
+            id: 'pay-race-direct-vs-webhook',
+            orderId: 'order-race-direct-vs-webhook',
+            purpose: PaymentPurpose.SALE,
+            amount: new Prisma.Decimal('100.00'),
+            currency: 'USD',
+            status: PaymentStatus.AUTHORIZED,
+            idempotencyKey: 'pay-race-direct-vs-webhook:key',
+            provider: 'mock-provider',
+            providerPaymentId: 'prov-race-direct-vs-webhook',
+            metadata: null,
+            order: { buyerId: 'buyer-race', sellerId: 'seller-race' },
+        };
+
+        let persistedStatus = PaymentStatus.AUTHORIZED;
+        let successfulPersists = 0;
+        let stateWriteInFlight = false;
+        let barrierRelease;
+        const barrier = new Promise((resolve) => {
+            barrierRelease = resolve;
+        });
+        let barrierCount = 0;
+        const waitForConcurrentState = async () => {
+            barrierCount += 1;
+            if (barrierCount === 2) {
+                barrierRelease();
+            }
+            await barrier;
+        };
+
+        const provider = {
+            name: 'mock-provider',
+            async authorize() { throw new Error('not used'); },
+            async capture() {
+                return {
+                    provider: 'mock-provider',
+                    providerPaymentId: 'prov-race-direct-vs-webhook',
+                    status: PaymentStatus.CAPTURED,
+                    metadata: { captured: true },
+                };
+            },
+            async cancel() { throw new Error('not used'); },
+            async refund() { throw new Error('not used'); },
+            async getStatus() { throw new Error('not used'); },
+            async verifyWebhook() {
+                return {
+                    provider: 'mock-provider',
+                    providerEventId: 'evt-race-direct-vs-webhook',
+                    eventType: 'payment_intent.succeeded',
+                    providerPaymentId: 'prov-race-direct-vs-webhook',
+                    paymentStatus: PaymentStatus.CAPTURED,
+                    occurredAt: new Date(),
+                    safeMetadata: { source: 'race' },
+                };
+            },
+        };
+
+        await withPaymentStubs({
+            findPaymentById: async () => ({ ...payment, status: persistedStatus, order: payment.order }),
+            updatePaymentStatus: async (id, status, data = {}) => {
+                if (stateWriteInFlight) {
+                    return { ...payment, id, status: persistedStatus, provider: payment.provider, providerPaymentId: payment.providerPaymentId, metadata: payment.metadata, order: payment.order };
+                }
+
+                stateWriteInFlight = true;
+                try {
+                    if (persistedStatus !== PaymentStatus.AUTHORIZED) {
+                        return { ...payment, id, status: persistedStatus, provider: payment.provider, providerPaymentId: payment.providerPaymentId, metadata: payment.metadata, order: payment.order };
+                    }
+
+                    persistedStatus = status;
+                    successfulPersists += 1;
+                    return {
+                        ...payment,
+                        id,
+                        status,
+                        provider: data.provider ?? payment.provider,
+                        providerPaymentId: data.providerPaymentId ?? payment.providerPaymentId,
+                        metadata: data.metadata ?? payment.metadata,
+                        order: payment.order,
+                    };
+                } finally {
+                    stateWriteInFlight = false;
+                }
+            },
+            compareAndSwapPaymentStatus: async (id, expectedStatus, status, data = {}) => {
+                await waitForConcurrentState();
+                if (stateWriteInFlight) {
+                    return null;
+                }
+
+                stateWriteInFlight = true;
+                try {
+                    if (persistedStatus !== expectedStatus) {
+                        return null;
+                    }
+
+                    persistedStatus = status;
+                    successfulPersists += 1;
+                    return {
+                        ...payment,
+                        id,
+                        status,
+                        provider: data.provider ?? payment.provider,
+                        providerPaymentId: data.providerPaymentId ?? payment.providerPaymentId,
+                        metadata: data.metadata ?? payment.metadata,
+                        order: payment.order,
+                    };
+                } finally {
+                    stateWriteInFlight = false;
+                }
+            },
+            claimWebhookEvent: async () => ({
+                event: { id: 'evt-race-direct-vs-webhook', provider: 'mock-provider', providerEventId: 'evt-race-direct-vs-webhook', eventType: 'payment_intent.succeeded', providerPaymentId: 'prov-race-direct-vs-webhook', paymentId: payment.id, status: 'PROCESSING', processedAt: null, reason: null },
+                claimed: true,
+                created: true,
+                state: 'claimed',
+            }),
+            findPaymentByProviderReference: async () => ({ ...payment, status: persistedStatus, order: payment.order }),
+            finalizeWebhookTransition: async (eventId, paymentId, data) => {
+                await waitForConcurrentState();
+                if (stateWriteInFlight) {
+                    return {
+                        payment: { ...payment, status: persistedStatus, order: payment.order },
+                        event: { id: eventId, status: 'IGNORED' },
+                        transitionApplied: false,
+                    };
+                }
+
+                stateWriteInFlight = true;
+                try {
+                    if (persistedStatus !== PaymentStatus.AUTHORIZED) {
+                        return {
+                            payment: { ...payment, status: persistedStatus, order: payment.order },
+                            event: { id: eventId, status: 'IGNORED' },
+                            transitionApplied: false,
+                        };
+                    }
+
+                    persistedStatus = data.paymentStatus;
+                    successfulPersists += 1;
+                    return {
+                        payment: {
+                            ...payment,
+                            id: paymentId,
+                            status: data.paymentStatus,
+                            provider: data.provider,
+                            providerPaymentId: data.providerPaymentId,
+                            metadata: data.metadata ?? payment.metadata,
+                            order: payment.order,
+                        },
+                        event: { id: eventId, status: 'PROCESSED' },
+                        transitionApplied: true,
+                    };
+                } finally {
+                    stateWriteInFlight = false;
+                }
+            },
+        }, async () => {
+            const [directResult, webhookResult] = await Promise.all([
+                paymentService.capturePayment(payment.id, provider),
+                paymentService.processWebhookEvent('mock-provider', Buffer.from('{}'), {}, provider),
+            ]);
+
+            assert.equal(persistedStatus, PaymentStatus.CAPTURED);
+            assert.ok(successfulPersists <= 1, `expected a single persisted transition, got ${successfulPersists}`);
+            assert.ok(publishCalls.length <= 1, `expected a single order change notification, got ${publishCalls.length}`);
+            assert.ok(!publishCalls.length || publishCalls[0][2] === 'order-race-direct-vs-webhook');
+
+
+            const persistedResults = [directResult, webhookResult].filter((result) => {
+                const status = result?.payment?.status ?? result?.status;
+                return status === PaymentStatus.CAPTURED;
+            });
+            assert.ok(persistedResults.length >= 1, `expected at least one captured result, got ${persistedResults.length}`);
+        });
+    } finally {
+        userRealtimePublisher.publishOrderChanged = originalPublishOrderChanged;
+    }
+});
+
+test('stale concurrent webhook writers cannot both persist or duplicate order_changed notifications', async () => {
+    const userRealtimePublisher = require('../src/utils/userRealtimePublisher.ts');
+    const originalPublishOrderChanged = userRealtimePublisher.publishOrderChanged;
+    const publishCalls = [];
+    userRealtimePublisher.publishOrderChanged = (...args) => {
+        publishCalls.push(args);
+    };
+
+    try {
+        const payment = {
+            id: 'pay-race-two-webhooks',
+            orderId: 'order-race-two-webhooks',
+            purpose: PaymentPurpose.SALE,
+            amount: new Prisma.Decimal('100.00'),
+            currency: 'USD',
+            status: PaymentStatus.AUTHORIZED,
+            idempotencyKey: 'pay-race-two-webhooks:key',
+            provider: 'mock-provider',
+            providerPaymentId: 'prov-race-two-webhooks',
+            metadata: null,
+            order: { buyerId: 'buyer-race-2', sellerId: 'seller-race-2' },
+        };
+
+        let persistedStatus = PaymentStatus.AUTHORIZED;
+        let successfulPersists = 0;
+        let barrierRelease;
+        const barrier = new Promise((resolve) => {
+            barrierRelease = resolve;
+        });
+        let barrierCount = 0;
+        const waitForConcurrentState = async () => {
+            barrierCount += 1;
+            if (barrierCount === 2) {
+                barrierRelease();
+            }
+            await barrier;
+        };
+
+        const provider = {
+            name: 'mock-provider',
+            async authorize() { throw new Error('not used'); },
+            async capture() { throw new Error('not used'); },
+            async cancel() { throw new Error('not used'); },
+            async refund() { throw new Error('not used'); },
+            async getStatus() { throw new Error('not used'); },
+            async verifyWebhook(eventData) {
+                return {
+                    provider: 'mock-provider',
+                    providerEventId: eventData.eventId,
+                    eventType: 'payment_intent.succeeded',
+                    providerPaymentId: 'prov-race-two-webhooks',
+                    paymentStatus: PaymentStatus.CAPTURED,
+                    occurredAt: new Date(),
+                    safeMetadata: { source: 'race' },
+                };
+            },
+        };
+
+        await withPaymentStubs({
+            findPaymentByProviderReference: async () => ({ ...payment, status: persistedStatus, order: payment.order }),
+            claimWebhookEvent: async (_, providerEventId) => ({
+                event: {
+                    id: `evt-race-${providerEventId}`,
+                    provider: 'mock-provider',
+                    providerEventId,
+                    eventType: 'payment_intent.succeeded',
+                    providerPaymentId: 'prov-race-two-webhooks',
+                    paymentId: payment.id,
+                    status: 'PROCESSING',
+                    processedAt: null,
+                    reason: null,
+                },
+                claimed: true,
+                created: true,
+                state: 'claimed',
+            }),
+            finalizeWebhookTransition: async (eventId, paymentId, data) => {
+                await waitForConcurrentState();
+                if (persistedStatus !== PaymentStatus.AUTHORIZED) {
+                    return {
+                        payment: { ...payment, status: persistedStatus, order: payment.order },
+                        event: { id: eventId, status: 'IGNORED' },
+                        transitionApplied: false,
+                    };
+                }
+
+                persistedStatus = data.paymentStatus;
+                successfulPersists += 1;
+                return {
+                    payment: {
+                        ...payment,
+                        id: paymentId,
+                        status: data.paymentStatus,
+                        provider: data.provider,
+                        providerPaymentId: data.providerPaymentId,
+                        metadata: data.metadata ?? payment.metadata,
+                        order: payment.order,
+                    },
+                    event: { id: eventId, status: 'PROCESSED' },
+                    transitionApplied: true,
+                };
+            },
+        }, async () => {
+            const [first, second] = await Promise.all([
+                paymentService.processWebhookEvent('mock-provider', Buffer.from('first'), {}, { ...provider, verifyWebhook: async () => ({
+                    provider: 'mock-provider',
+                    providerEventId: 'evt-1',
+                    eventType: 'payment_intent.succeeded',
+                    providerPaymentId: 'prov-race-two-webhooks',
+                    paymentStatus: PaymentStatus.CAPTURED,
+                    occurredAt: new Date(),
+                    safeMetadata: null,
+                }) }),
+                paymentService.processWebhookEvent('mock-provider', Buffer.from('second'), {}, { ...provider, verifyWebhook: async () => ({
+                    provider: 'mock-provider',
+                    providerEventId: 'evt-2',
+                    eventType: 'payment_intent.succeeded',
+                    providerPaymentId: 'prov-race-two-webhooks',
+                    paymentStatus: PaymentStatus.CAPTURED,
+                    occurredAt: new Date(),
+                    safeMetadata: null,
+                }) }),
+            ]);
+
+            assert.equal(persistedStatus, PaymentStatus.CAPTURED);
+            assert.ok(successfulPersists <= 1, `expected a single persisted transition, got ${successfulPersists}`);
+            assert.ok(publishCalls.length <= 1, `expected a single order change notification, got ${publishCalls.length}`);
+            assert.ok(!publishCalls.length || publishCalls[0][2] === 'order-race-two-webhooks');
+
+            const transitionWins = [
+                first?.transitionApplied ?? false,
+                second?.transitionApplied ?? false,
+            ].filter(Boolean).length;
+            assert.equal(transitionWins, 1);
+
+            const processedOutcomes = [first.event.status, second.event.status].filter((status) => status === 'PROCESSED');
+        });
+    } finally {
+        userRealtimePublisher.publishOrderChanged = originalPublishOrderChanged;
+    }
 });
 
 test('unknown provider is rejected before processing', async () => {

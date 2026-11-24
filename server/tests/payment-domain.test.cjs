@@ -98,6 +98,29 @@ paymentRepositoryModule.exports = {
     payment.updatedAt = new Date();
     return payment;
   },
+  compareAndSwapPaymentStatus: async (id, expectedStatus, status, data = {}) => {
+    const payment = paymentRepositoryState.byId.get(id);
+    if (!payment) {
+      throw new Error('Payment not found');
+    }
+
+    if (payment.status !== expectedStatus) {
+      return null;
+    }
+
+    payment.status = status;
+    if (data.provider !== undefined) {
+      payment.provider = data.provider;
+    }
+    if (data.providerPaymentId !== undefined) {
+      payment.providerPaymentId = data.providerPaymentId;
+    }
+    if (data.metadata !== undefined) {
+      payment.metadata = data.metadata;
+    }
+    payment.updatedAt = new Date();
+    return payment;
+  },
 };
 require.cache[paymentRepositoryId] = paymentRepositoryModule;
 
@@ -653,13 +676,9 @@ test('repeated provider operations do not call the provider again once the termi
   const authorized = await authorizePayment(authorizePaymentRecord.id, authProvider);
   assert.equal(authProvider.authorizeCalls, 1);
   assert.equal(authorized.status, PaymentStatus.AUTHORIZED);
-  await assert.rejects(
-    authorizePayment(authorizePaymentRecord.id, authProvider),
-    (error) => {
-      assert.equal(authProvider.authorizeCalls, 1);
-      return error && error.statusCode === 409;
-    }
-  );
+  const repeatAuthorized = await authorizePayment(authorizePaymentRecord.id, authProvider);
+  assert.equal(authProvider.authorizeCalls, 1);
+  assert.equal(repeatAuthorized.status, PaymentStatus.AUTHORIZED);
 
   orders.set('sale-capture-idempotency', { id: 'sale-capture-idempotency', transactionType: ListingType.SALE });
   const capturePaymentRecord = await createPaymentRecord({
@@ -673,13 +692,9 @@ test('repeated provider operations do not call the provider again once the termi
   const captured = await capturePayment(captureAuthorized.id, authProvider);
   assert.equal(authProvider.captureCalls, 1);
   assert.equal(captured.status, PaymentStatus.CAPTURED);
-  await assert.rejects(
-    capturePayment(captureAuthorized.id, authProvider),
-    (error) => {
-      assert.equal(authProvider.captureCalls, 1);
-      return error && error.statusCode === 409;
-    }
-  );
+  const repeatCaptured = await capturePayment(captureAuthorized.id, authProvider);
+  assert.equal(authProvider.captureCalls, 1);
+  assert.equal(repeatCaptured.status, PaymentStatus.CAPTURED);
 
   orders.set('sale-cancel-idempotency', { id: 'sale-cancel-idempotency', transactionType: ListingType.SALE });
   const cancelPaymentRecord = await createPaymentRecord({
@@ -693,13 +708,9 @@ test('repeated provider operations do not call the provider again once the termi
   const cancelled = await cancelPayment(cancelAuthorized.id, authProvider);
   assert.equal(authProvider.cancelCalls, 1);
   assert.equal(cancelled.status, PaymentStatus.CANCELLED);
-  await assert.rejects(
-    cancelPayment(cancelAuthorized.id, authProvider),
-    (error) => {
-      assert.equal(authProvider.cancelCalls, 1);
-      return error && error.statusCode === 409;
-    }
-  );
+  const repeatCancelled = await cancelPayment(cancelAuthorized.id, authProvider);
+  assert.equal(authProvider.cancelCalls, 1);
+  assert.equal(repeatCancelled.status, PaymentStatus.CANCELLED);
 
   orders.set('sale-refund-idempotency', { id: 'sale-refund-idempotency', transactionType: ListingType.SALE });
   const refundPaymentRecord = await createPaymentRecord({
@@ -714,13 +725,9 @@ test('repeated provider operations do not call the provider again once the termi
   const refunded = await refundPayment(refundCaptured.id, authProvider);
   assert.equal(authProvider.refundCalls, 1);
   assert.equal(refunded.status, PaymentStatus.REFUNDED);
-  await assert.rejects(
-    refundPayment(refundCaptured.id, authProvider),
-    (error) => {
-      assert.equal(authProvider.refundCalls, 1);
-      return error && error.statusCode === 409;
-    }
-  );
+  const repeatRefunded = await refundPayment(refundCaptured.id, authProvider);
+  assert.equal(authProvider.refundCalls, 1);
+  assert.equal(repeatRefunded.status, PaymentStatus.REFUNDED);
 });
 
 test('rental deposit hold/release/capture idempotency does not repeat provider operations', async () => {
@@ -814,6 +821,193 @@ test('rental deposit hold/release/capture idempotency does not repeat provider o
   const alreadyCaptured = await captureRentalDeposit('rent-capture-idempotency', provider);
   assert.equal(captureCalls, 1);
   assert.equal(alreadyCaptured.status, PaymentStatus.CAPTURED);
+});
+
+test('duplicate concurrent payment operations share the same provider call', async () => {
+  clearState();
+
+  const makeProvider = (operation, onCall) => ({
+    authorize: async (input) => {
+      if (operation === 'authorize') {
+        onCall();
+        return { provider: 'mock-provider', providerPaymentId: `auth-${input.orderId}`, status: PaymentStatus.AUTHORIZED, metadata: { strategy: 'concurrent-authorize' } };
+      }
+      return { provider: 'mock-provider', providerPaymentId: `auth-${input.orderId}`, status: PaymentStatus.AUTHORIZED, metadata: { strategy: 'standby-authorize' } };
+    },
+    capture: async (input) => {
+      if (operation === 'capture') {
+        onCall();
+        return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `capture-${input.orderId}`, status: PaymentStatus.CAPTURED, metadata: { strategy: 'concurrent-capture' } };
+      }
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `capture-${input.orderId}`, status: PaymentStatus.CAPTURED, metadata: { strategy: 'standby-capture' } };
+    },
+    cancel: async (input) => {
+      if (operation === 'cancel') {
+        onCall();
+        return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `cancel-${input.orderId}`, status: PaymentStatus.CANCELLED, metadata: { strategy: 'concurrent-cancel' } };
+      }
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `cancel-${input.orderId}`, status: PaymentStatus.CANCELLED, metadata: { strategy: 'standby-cancel' } };
+    },
+    refund: async (input) => {
+      if (operation === 'refund') {
+        onCall();
+        return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `refund-${input.orderId}`, status: PaymentStatus.REFUNDED, metadata: { strategy: 'concurrent-refund' } };
+      }
+      return { provider: 'mock-provider', providerPaymentId: input.providerPaymentId ?? `refund-${input.orderId}`, status: PaymentStatus.REFUNDED, metadata: { strategy: 'standby-refund' } };
+    },
+    getStatus: async () => ({ provider: 'mock-provider', providerPaymentId: 'status-ref', status: PaymentStatus.CAPTURED }),
+  });
+
+  const authOrder = { id: 'concurrent-authorize', buyerId: 'buyer-5', transactionType: ListingType.SALE, status: 'PENDING' };
+  orders.set('concurrent-authorize', authOrder);
+  const authPayment = await createPaymentRecord({
+    orderId: 'concurrent-authorize',
+    purpose: PaymentPurpose.SALE,
+    amount: '10.00',
+    currency: 'USD',
+    idempotencyKey: 'concurrent-authorize',
+  });
+  let authorizeCalls = 0;
+  const authorizeProvider = makeProvider('authorize', () => { authorizeCalls += 1; });
+  const [authorizeA, authorizeB] = await Promise.all([
+    authorizePayment(authPayment.id, authorizeProvider),
+    authorizePayment(authPayment.id, authorizeProvider),
+  ]);
+  assert.equal(authorizeCalls, 1);
+  assert.equal(authorizeA.status, PaymentStatus.AUTHORIZED);
+  assert.equal(authorizeB.status, PaymentStatus.AUTHORIZED);
+
+  const captureOrder = { id: 'concurrent-capture', buyerId: 'buyer-6', transactionType: ListingType.SALE, status: 'PENDING' };
+  orders.set('concurrent-capture', captureOrder);
+  const capturePaymentRecord = await createPaymentRecord({
+    orderId: 'concurrent-capture',
+    purpose: PaymentPurpose.SALE,
+    amount: '20.00',
+    currency: 'USD',
+    idempotencyKey: 'concurrent-capture',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(capturePaymentRecord.id, PaymentStatus.AUTHORIZED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'payment-concurrent-capture',
+  });
+  let captureCalls = 0;
+  const captureProvider = makeProvider('capture', () => { captureCalls += 1; });
+  const [captureA, captureB] = await Promise.all([
+    capturePayment(capturePaymentRecord.id, captureProvider),
+    capturePayment(capturePaymentRecord.id, captureProvider),
+  ]);
+  assert.equal(captureCalls, 1);
+  assert.equal(captureA.status, PaymentStatus.CAPTURED);
+  assert.equal(captureB.status, PaymentStatus.CAPTURED);
+
+  const cancelOrder = { id: 'concurrent-cancel', buyerId: 'buyer-7', transactionType: ListingType.SALE, status: 'PENDING' };
+  orders.set('concurrent-cancel', cancelOrder);
+  const cancelPaymentRecord = await createPaymentRecord({
+    orderId: 'concurrent-cancel',
+    purpose: PaymentPurpose.SALE,
+    amount: '30.00',
+    currency: 'USD',
+    idempotencyKey: 'concurrent-cancel',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(cancelPaymentRecord.id, PaymentStatus.AUTHORIZED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'payment-concurrent-cancel',
+  });
+  let cancelCalls = 0;
+  const cancelProvider = makeProvider('cancel', () => { cancelCalls += 1; });
+  const [cancelA, cancelB] = await Promise.all([
+    cancelPayment(cancelPaymentRecord.id, cancelProvider),
+    cancelPayment(cancelPaymentRecord.id, cancelProvider),
+  ]);
+  assert.equal(cancelCalls, 1);
+  assert.equal(cancelA.status, PaymentStatus.CANCELLED);
+  assert.equal(cancelB.status, PaymentStatus.CANCELLED);
+
+  const refundOrder = { id: 'concurrent-refund', buyerId: 'buyer-8', transactionType: ListingType.SALE, status: 'PENDING' };
+  orders.set('concurrent-refund', refundOrder);
+  const refundPaymentRecord = await createPaymentRecord({
+    orderId: 'concurrent-refund',
+    purpose: PaymentPurpose.SALE,
+    amount: '40.00',
+    currency: 'USD',
+    idempotencyKey: 'concurrent-refund',
+  });
+  await paymentRepositoryModule.exports.updatePaymentStatus(refundPaymentRecord.id, PaymentStatus.CAPTURED, {
+    provider: 'mock-provider',
+    providerPaymentId: 'payment-concurrent-refund',
+  });
+  let refundCalls = 0;
+  const refundProvider = makeProvider('refund', () => { refundCalls += 1; });
+  const [refundA, refundB] = await Promise.all([
+    refundPayment(refundPaymentRecord.id, refundProvider),
+    refundPayment(refundPaymentRecord.id, refundProvider),
+  ]);
+  assert.equal(refundCalls, 1);
+  assert.equal(refundA.status, PaymentStatus.REFUNDED);
+  assert.equal(refundB.status, PaymentStatus.REFUNDED);
+});
+
+test('failed payment operation releases the in-flight lock and allows retry', async () => {
+    clearState();
+
+    orders.set('retry-after-failure', {
+        id: 'retry-after-failure',
+        buyerId: 'buyer-retry',
+        transactionType: ListingType.SALE,
+        status: 'PENDING',
+    });
+
+    const payment = await createPaymentRecord({
+        orderId: 'retry-after-failure',
+        purpose: PaymentPurpose.SALE,
+        amount: '25.00',
+        currency: 'USD',
+        idempotencyKey: 'retry-after-failure',
+    });
+
+    let authorizeCalls = 0;
+
+    const provider = {
+        authorize: async (input) => {
+            authorizeCalls += 1;
+
+            if (authorizeCalls === 1) {
+                throw new Error('temporary provider failure');
+            }
+
+            return {
+                provider: 'mock-provider',
+                providerPaymentId: `auth-${input.orderId}`,
+                status: PaymentStatus.AUTHORIZED,
+            };
+        },
+
+        capture: async () => {
+            throw new Error('not used');
+        },
+
+        cancel: async () => {
+            throw new Error('not used');
+        },
+
+        refund: async () => {
+            throw new Error('not used');
+        },
+
+        getStatus: async () => {
+            throw new Error('not used');
+        },
+    };
+
+    await assert.rejects(
+        authorizePayment(payment.id, provider),
+        /temporary provider failure/
+    );
+
+    const retried = await authorizePayment(payment.id, provider);
+
+    assert.equal(authorizeCalls, 2);
+    assert.equal(retried.status, PaymentStatus.AUTHORIZED);
 });
 
 test('provider-confirmed operations only transition to allowed states', async () => {

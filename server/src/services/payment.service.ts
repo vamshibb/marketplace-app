@@ -138,8 +138,45 @@ const ensureAuthorizeResultIsPersistable = (providerResult: PaymentProviderResul
 
 const buildProviderOperationIdempotencyKey = (
     payment: { idempotencyKey: string },
-    operation: "authorize" | "capture" | "cancel"
+    operation: "authorize" | "capture" | "cancel" | "refund"
 ): string => `${payment.idempotencyKey}:${operation}`;
+
+const resolveOperationIdempotencyKey = (
+    payment: { idempotencyKey: string },
+    operation: "authorize" | "capture" | "cancel" | "refund",
+    operationOptions?: PaymentOperationOptions
+): string =>
+    operationOptions?.operationIdempotencyKey?.trim() ||
+    buildProviderOperationIdempotencyKey(payment, operation);
+
+const paymentOperationLocks = new Map<string, Promise<unknown>>();
+
+const withPaymentOperationLock = async <T>(
+    paymentId: string,
+    operation: "authorize" | "capture" | "cancel" | "refund",
+    operationIdempotencyKey: string,
+    executor: () => Promise<T>
+): Promise<T> => {
+    const lockKey = `${paymentId}:${operation}:${operationIdempotencyKey}`;
+    const existing = paymentOperationLocks.get(lockKey);
+    if (existing) {
+        return await existing as T;
+    }
+
+    let pending!: Promise<T>;
+    pending = (async () => {
+        try {
+            return await executor();
+        } finally {
+            if (paymentOperationLocks.get(lockKey) === pending) {
+                paymentOperationLocks.delete(lockKey);
+            }
+        }
+    })();
+
+    paymentOperationLocks.set(lockKey, pending as Promise<unknown>);
+    return await pending;
+};
 
 const buildProviderRequest = (
     payment: {
@@ -159,10 +196,7 @@ const buildProviderRequest = (
     amount: payment.amount,
     currency: payment.currency,
     idempotencyKey: payment.idempotencyKey,
-    operationIdempotencyKey:
-        operation === "refund"
-            ? operationOptions?.operationIdempotencyKey ?? undefined
-            : buildProviderOperationIdempotencyKey(payment, operation),
+    operationIdempotencyKey: resolveOperationIdempotencyKey(payment, operation, operationOptions),
     providerPaymentId: payment.providerPaymentId,
     metadata: mergeMetadata(payment.metadata, operationOptions?.metadata),
 });
@@ -387,17 +421,20 @@ export const processWebhookEvent = async (
             } as PaymentMetadataObject) as Prisma.PaymentUncheckedUpdateInput["metadata"],
         });
 
-        publishOrderChanged(
-            processed.payment.order?.buyerId,
-            processed.payment.order?.sellerId,
-            processed.payment.orderId,
-        );
+        if (processed.transitionApplied) {
+            publishOrderChanged(
+                processed.payment.order?.buyerId,
+                processed.payment.order?.sellerId,
+                processed.payment.orderId,
+            );
+        }
 
         return {
             acknowledged: true,
             idempotent: false,
             event: processed.event,
             payment: processed.payment,
+            transitionApplied: processed.transitionApplied,
         };
     } catch (error) {
         const message = error instanceof Error ? error.message : "Webhook processing failed.";
@@ -508,11 +545,28 @@ const updatePaymentWithTransition = async (
     const metadataValue = mergedMetadata === undefined ? undefined : mergedMetadata ?? Prisma.DbNull;
 
     try {
-        const updatedPayment = await paymentRepository.updatePaymentStatus(payment.id, nextStatus, {
-            provider: providerData?.provider ?? payment.provider,
-            providerPaymentId: providerData?.providerPaymentId ?? payment.providerPaymentId,
-            metadata: providerData?.metadata ?? metadataValue,
-        });
+        const updatedPayment = await paymentRepository.compareAndSwapPaymentStatus(
+            payment.id,
+            payment.status,
+            nextStatus,
+            {
+                provider: providerData?.provider ?? payment.provider,
+                providerPaymentId: providerData?.providerPaymentId ?? payment.providerPaymentId,
+                metadata: providerData?.metadata ?? metadataValue,
+            }
+        );
+
+        if (!updatedPayment) {
+            const latestPayment = await requirePaymentRecord(paymentId);
+            if (latestPayment.status === nextStatus) {
+                return latestPayment;
+            }
+
+            throw new AppError(
+                `Payment state changed concurrently while applying ${payment.status} -> ${nextStatus}.`,
+                409
+            );
+        }
 
         publishOrderChanged(
             updatedPayment.order?.buyerId,
@@ -1020,82 +1074,94 @@ export const authorizePayment = async (
     options: PaymentOperationOptions = {}
 ) => {
     const payment = await requirePaymentRecord(paymentId);
+    const operationIdempotencyKey = resolveOperationIdempotencyKey(payment, "authorize", options);
 
-    validateStatusTransition(
-        payment.status,
-        PaymentStatus.AUTHORIZED
-    );
+    return withPaymentOperationLock(payment.id, "authorize", operationIdempotencyKey, async () => {
+        const currentPayment = await requirePaymentRecord(paymentId);
 
-    const providerRequest = buildProviderRequest(
-        payment,
-        "authorize",
-        options
-    );
+        if (currentPayment.status === PaymentStatus.AUTHORIZED) {
+            return {
+                ...currentPayment,
+                clientSecret: null,
+            };
+        }
 
-    const providerResult =
-        await paymentProvider.authorize(providerRequest);
-
-    if (
-        providerResult.status !== PaymentStatus.PROCESSING &&
-        providerResult.status !== PaymentStatus.AUTHORIZED
-    ) {
-        throw new AppError(
-            "Payment provider did not return a valid authorization state.",
-            409
+        validateStatusTransition(
+            currentPayment.status,
+            PaymentStatus.AUTHORIZED
         );
-    }
 
-    if (
-        !providerResult.provider ||
-        !providerResult.provider.trim()
-    ) {
-        throw new AppError(
-            "Payment provider did not return a provider identity.",
-            409
+        const providerRequest = buildProviderRequest(
+            currentPayment,
+            "authorize",
+            options
         );
-    }
 
-    if (
-        !providerResult.providerPaymentId ||
-        !providerResult.providerPaymentId.trim()
-    ) {
-        throw new AppError(
-            "Payment provider did not return a providerPaymentId.",
-            409
+        const providerResult =
+            await paymentProvider.authorize(providerRequest);
+
+        if (
+            providerResult.status !== PaymentStatus.PROCESSING &&
+            providerResult.status !== PaymentStatus.AUTHORIZED
+        ) {
+            throw new AppError(
+                "Payment provider did not return a valid authorization state.",
+                409
+            );
+        }
+
+        if (
+            !providerResult.provider ||
+            !providerResult.provider.trim()
+        ) {
+            throw new AppError(
+                "Payment provider did not return a provider identity.",
+                409
+            );
+        }
+
+        if (
+            !providerResult.providerPaymentId ||
+            !providerResult.providerPaymentId.trim()
+        ) {
+            throw new AppError(
+                "Payment provider did not return a providerPaymentId.",
+                409
+            );
+        }
+
+        ensureProviderIdentityConsistency(
+            currentPayment,
+            providerResult,
+            "authorize"
         );
-    }
 
-    ensureProviderIdentityConsistency(
-        payment,
-        providerResult,
-        "authorize"
-    );
+        if (providerResult.status === currentPayment.status) {
+            return {
+                ...currentPayment,
+                clientSecret:
+                    providerResult.clientSecret ?? null,
+            };
+        }
 
-    if (providerResult.status === payment.status) {
+        const updatedPayment =
+            await updatePaymentWithTransition(
+                currentPayment.id,
+                providerResult.status,
+                providerResult.metadata,
+                {
+                    provider: providerResult.provider,
+                    providerPaymentId:
+                        providerResult.providerPaymentId,
+                }
+            );
+
         return {
-            ...payment,
+            ...updatedPayment,
             clientSecret:
                 providerResult.clientSecret ?? null,
         };
-    }
-
-    const updatedPayment =
-        await updatePaymentWithTransition(
-            payment.id,
-            providerResult.status,
-            providerResult.metadata,
-            {
-                provider: providerResult.provider,
-                providerPaymentId:
-                    providerResult.providerPaymentId,
-            }
-        );
-
-    return {
-        ...updatedPayment,
-        clientSecret:
-            providerResult.clientSecret ?? null,
-    };
+    });
 };
 
 export const capturePayment = async (
@@ -1104,24 +1170,33 @@ export const capturePayment = async (
     options: PaymentOperationOptions = {}
 ) => {
     const payment = await requirePaymentRecord(paymentId);
-    if (!payment.providerPaymentId) {
-        throw new AppError("Payment is missing providerPaymentId for capture.", 409);
-    }
+    const operationIdempotencyKey = resolveOperationIdempotencyKey(payment, "capture", options);
 
-    validateStatusTransition(payment.status, PaymentStatus.CAPTURED);
+    return withPaymentOperationLock(payment.id, "capture", operationIdempotencyKey, async () => {
+        const currentPayment = await requirePaymentRecord(paymentId);
+        if (!currentPayment.providerPaymentId) {
+            throw new AppError("Payment is missing providerPaymentId for capture.", 409);
+        }
 
-    const providerRequest = buildProviderRequest(payment, "capture", options);
-    const providerResult = await paymentProvider.capture(providerRequest);
+        if (currentPayment.status === PaymentStatus.CAPTURED) {
+            return currentPayment;
+        }
 
-    if (providerResult.status !== PaymentStatus.CAPTURED) {
-        throw new AppError("Payment provider did not capture the payment.", 409);
-    }
+        validateStatusTransition(currentPayment.status, PaymentStatus.CAPTURED);
 
-    ensureProviderIdentityConsistency(payment, providerResult, "capture");
+        const providerRequest = buildProviderRequest(currentPayment, "capture", options);
+        const providerResult = await paymentProvider.capture(providerRequest);
 
-    return updatePaymentWithTransition(payment.id, PaymentStatus.CAPTURED, providerResult.metadata, {
-        provider: providerResult.provider ?? payment.provider,
-        providerPaymentId: providerResult.providerPaymentId ?? payment.providerPaymentId,
+        if (providerResult.status !== PaymentStatus.CAPTURED) {
+            throw new AppError("Payment provider did not capture the payment.", 409);
+        }
+
+        ensureProviderIdentityConsistency(currentPayment, providerResult, "capture");
+
+        return updatePaymentWithTransition(currentPayment.id, PaymentStatus.CAPTURED, providerResult.metadata, {
+            provider: providerResult.provider ?? currentPayment.provider,
+            providerPaymentId: providerResult.providerPaymentId ?? currentPayment.providerPaymentId,
+        });
     });
 };
 
@@ -1131,24 +1206,33 @@ export const cancelPayment = async (
     options: PaymentOperationOptions = {}
 ) => {
     const payment = await requirePaymentRecord(paymentId);
-    if (!payment.providerPaymentId) {
-        throw new AppError("Payment is missing providerPaymentId for cancellation.", 409);
-    }
+    const operationIdempotencyKey = resolveOperationIdempotencyKey(payment, "cancel", options);
 
-    validateStatusTransition(payment.status, PaymentStatus.CANCELLED);
+    return withPaymentOperationLock(payment.id, "cancel", operationIdempotencyKey, async () => {
+        const currentPayment = await requirePaymentRecord(paymentId);
+        if (!currentPayment.providerPaymentId) {
+            throw new AppError("Payment is missing providerPaymentId for cancellation.", 409);
+        }
 
-    const providerRequest = buildProviderRequest(payment, "cancel", options);
-    const providerResult = await paymentProvider.cancel(providerRequest);
+        if (currentPayment.status === PaymentStatus.CANCELLED) {
+            return currentPayment;
+        }
 
-    if (providerResult.status !== PaymentStatus.CANCELLED) {
-        throw new AppError("Payment provider did not cancel the payment.", 409);
-    }
+        validateStatusTransition(currentPayment.status, PaymentStatus.CANCELLED);
 
-    ensureProviderIdentityConsistency(payment, providerResult, "cancel");
+        const providerRequest = buildProviderRequest(currentPayment, "cancel", options);
+        const providerResult = await paymentProvider.cancel(providerRequest);
 
-    return updatePaymentWithTransition(payment.id, PaymentStatus.CANCELLED, providerResult.metadata, {
-        provider: providerResult.provider ?? payment.provider,
-        providerPaymentId: providerResult.providerPaymentId ?? payment.providerPaymentId,
+        if (providerResult.status !== PaymentStatus.CANCELLED) {
+            throw new AppError("Payment provider did not cancel the payment.", 409);
+        }
+
+        ensureProviderIdentityConsistency(currentPayment, providerResult, "cancel");
+
+        return updatePaymentWithTransition(currentPayment.id, PaymentStatus.CANCELLED, providerResult.metadata, {
+            provider: providerResult.provider ?? currentPayment.provider,
+            providerPaymentId: providerResult.providerPaymentId ?? currentPayment.providerPaymentId,
+        });
     });
 };
 
@@ -1158,24 +1242,33 @@ export const refundPayment = async (
     options: PaymentOperationOptions = {}
 ) => {
     const payment = await requirePaymentRecord(paymentId);
-    if (!payment.providerPaymentId) {
-        throw new AppError("Payment is missing providerPaymentId for refund.", 409);
-    }
+    const operationIdempotencyKey = resolveOperationIdempotencyKey(payment, "refund", options);
 
-    validateStatusTransition(payment.status, PaymentStatus.REFUNDED);
+    return withPaymentOperationLock(payment.id, "refund", operationIdempotencyKey, async () => {
+        const currentPayment = await requirePaymentRecord(paymentId);
+        if (!currentPayment.providerPaymentId) {
+            throw new AppError("Payment is missing providerPaymentId for refund.", 409);
+        }
 
-    const providerRequest = buildProviderRequest(payment, "refund", options);
-    const providerResult = await paymentProvider.refund(providerRequest);
+        if (currentPayment.status === PaymentStatus.REFUNDED) {
+            return currentPayment;
+        }
 
-    if (providerResult.status !== PaymentStatus.REFUNDED) {
-        throw new AppError("Payment provider did not issue a full refund result.", 409);
-    }
+        validateStatusTransition(currentPayment.status, PaymentStatus.REFUNDED);
 
-    ensureProviderIdentityConsistency(payment, providerResult, "refund");
+        const providerRequest = buildProviderRequest(currentPayment, "refund", options);
+        const providerResult = await paymentProvider.refund(providerRequest);
 
-    return updatePaymentWithTransition(payment.id, PaymentStatus.REFUNDED, providerResult.metadata, {
-        provider: providerResult.provider ?? payment.provider,
-        providerPaymentId: providerResult.providerPaymentId ?? payment.providerPaymentId,
+        if (providerResult.status !== PaymentStatus.REFUNDED) {
+            throw new AppError("Payment provider did not issue a full refund result.", 409);
+        }
+
+        ensureProviderIdentityConsistency(currentPayment, providerResult, "refund");
+
+        return updatePaymentWithTransition(currentPayment.id, PaymentStatus.REFUNDED, providerResult.metadata, {
+            provider: providerResult.provider ?? currentPayment.provider,
+            providerPaymentId: providerResult.providerPaymentId ?? currentPayment.providerPaymentId,
+        });
     });
 };
 

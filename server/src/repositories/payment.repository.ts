@@ -101,6 +101,33 @@ export const updatePaymentStatus = (
         select: paymentSelect,
     });
 
+export const compareAndSwapPaymentStatus = async (
+    id: string,
+    expectedStatus: PaymentStatus,
+    status: PaymentStatus,
+    data: PaymentStatusUpdateData = {}
+) => {
+    const result = await prisma.payment.updateMany({
+        where: {
+            id,
+            status: expectedStatus,
+        },
+        data: {
+            status,
+            ...data,
+        },
+    });
+
+    if (result.count !== 1) {
+        return null;
+    }
+
+    return prisma.payment.findUnique({
+        where: { id },
+        select: paymentSelect,
+    });
+};
+
 export const findWebhookEventByProviderEventId = (provider: string, providerEventId: string) =>
     prisma.paymentWebhookEvent.findUnique({
         where: {
@@ -430,6 +457,7 @@ export const finalizeWebhookTransition = async (
         let nextEventStatus = data.finalEventStatus;
         let finalReason = data.reason ?? null;
         let updatedPayment = payment;
+        let paymentChanged = false;
 
         if (payment.status === data.paymentStatus) {
             nextEventStatus = PaymentWebhookEventStatus.PROCESSED;
@@ -438,25 +466,52 @@ export const finalizeWebhookTransition = async (
             const validTransition = (VALID_FORWARD_TRANSITIONS[payment.status] ?? []).includes(data.paymentStatus);
             if (validTransition) {
                 try {
-                    updatedPayment = await tx.payment.update({
-                        where: { id: paymentId },
+                    const paymentUpdate = await tx.payment.updateMany({
+                        where: {
+                            id: paymentId,
+                            status: payment.status,
+                        },
                         data: {
                             status: data.paymentStatus,
                             provider: data.provider,
                             providerPaymentId: data.providerPaymentId,
                             metadata: data.metadata === undefined ? undefined : data.metadata ?? Prisma.DbNull,
                         },
-                        select: paymentSelect,
                     });
+
+                    if (paymentUpdate.count === 1) {
+                        updatedPayment = await tx.payment.findUnique({
+                            where: { id: paymentId },
+                            select: paymentSelect,
+                        }) ?? payment;
+                        paymentChanged = true;
+                        nextEventStatus = PaymentWebhookEventStatus.PROCESSED;
+                        finalReason = data.reason ?? null;
+                    } else {
+                        const latestPayment = await tx.payment.findUnique({
+                            where: { id: paymentId },
+                            select: paymentSelect,
+                        });
+
+                        if (!latestPayment) {
+                            throw new AppError("Payment disappeared during webhook finalization.", 404);
+                        }
+
+                        updatedPayment = latestPayment;
+                        if (latestPayment.status === data.paymentStatus) {
+                            nextEventStatus = PaymentWebhookEventStatus.PROCESSED;
+                            finalReason = data.reason ?? "Webhook status already matched the persisted payment status; no mutation was required.";
+                        } else {
+                            nextEventStatus = PaymentWebhookEventStatus.IGNORED;
+                            finalReason = data.reason ?? `Webhook payment status ${data.paymentStatus} is stale or out of order for payment status ${latestPayment.status}.`;
+                        }
+                    }
                 } catch (error) {
                     if (isUniqueConstraintError(error)) {
                         throw new AppError("A payment with the same provider transaction identity already exists.", 409);
                     }
                     throw error;
                 }
-
-                nextEventStatus = PaymentWebhookEventStatus.PROCESSED;
-                finalReason = data.reason ?? null;
             } else {
                 nextEventStatus = PaymentWebhookEventStatus.IGNORED;
                 finalReason = data.reason ?? `Webhook payment status ${data.paymentStatus} is stale or out of order for payment status ${payment.status}.`;
@@ -481,6 +536,7 @@ export const finalizeWebhookTransition = async (
         return {
             payment: updatedPayment,
             event: finalEvent,
+            transitionApplied: paymentChanged,
         };
     });
 
