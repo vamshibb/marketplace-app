@@ -277,15 +277,20 @@ test('successful payment status persistence publishes order_changed, failed pers
   };
 
   t.mock.method(paymentRepository, 'findPaymentById', async () => payment);
-  t.mock.method(paymentRepository, 'updatePaymentStatus', async (id, status, data = {}) => ({
-    ...payment,
-    id,
-    status,
-    provider: data.provider ?? payment.provider,
-    providerPaymentId: data.providerPaymentId ?? payment.providerPaymentId,
-    metadata: data.metadata ?? payment.metadata,
-    order: payment.order,
-  }));
+  t.mock.method(
+    paymentRepository,
+    'compareAndSwapPaymentStatus',
+    async (id, expectedStatus, status, data = {}) => ({
+      ...payment,
+      id,
+      status,
+      provider: data.provider ?? payment.provider,
+      providerPaymentId:
+        data.providerPaymentId ?? payment.providerPaymentId,
+      metadata: data.metadata ?? payment.metadata,
+      order: payment.order,
+    })
+  );
 
   const updated = await paymentService.capturePayment('pay-1', provider);
   assert.equal(updated.status, PaymentStatus.CAPTURED);
@@ -293,8 +298,13 @@ test('successful payment status persistence publishes order_changed, failed pers
   assert.deepEqual(clients['seller-1'].events('order_changed'), [{ orderId: 'o-payment' }]);
   assert.deepEqual(clients.outsider.events('order_changed'), []);
 
-  t.mock.method(paymentRepository, 'updatePaymentStatus', async () => { throw new Error('persist failed'); });
-  await assert.rejects(paymentService.capturePayment('pay-1', provider), /persist failed/);
+  t.mock.method(
+    paymentRepository,
+    'compareAndSwapPaymentStatus',
+    async () => {
+      throw new Error('persist failed');
+    }
+  ); await assert.rejects(paymentService.capturePayment('pay-1', provider), /persist failed/);
   assert.equal(clients['buyer-1'].events('order_changed').length, 1);
   assert.equal(clients['seller-1'].events('order_changed').length, 1);
 });
@@ -336,6 +346,7 @@ test('webhook-driven payment transitions emit order_changed once; duplicate/igno
   t.mock.method(paymentRepository, 'finalizeWebhookTransition', async () => ({
     event: { id: 'evt-db', status: 'PROCESSED' },
     payment: { ...payment, status: PaymentStatus.CAPTURED, order: payment.order },
+    transitionApplied: true,
   }));
 
   const processed = await paymentService.processWebhookEvent('mock-provider', 'raw', {}, provider);

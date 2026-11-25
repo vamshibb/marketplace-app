@@ -453,17 +453,60 @@ export const finalizeWebhookTransition = async (
         if (!payment) {
             throw new AppError("Payment not found.", 404);
         }
+        const latestProcessedEvent = await tx.paymentWebhookEvent.findFirst({
+            where: {
+                paymentId,
+                status: PaymentWebhookEventStatus.PROCESSED,
+                occurredAt: {
+                    not: null,
+                },
+                id: {
+                    not: event.id,
+                },
+            },
+            orderBy: [
+                {
+                    occurredAt: "desc",
+                },
+                {
+                    processedAt: "desc",
+                },
+                {
+                    createdAt: "desc",
+                },
+            ],
+            select: {
+                occurredAt: true,
+            },
+        });
 
+        const isChronologicallyStale =
+            event.occurredAt !== null &&
+            latestProcessedEvent?.occurredAt !== null &&
+            latestProcessedEvent?.occurredAt !== undefined &&
+            event.occurredAt.getTime() <
+            latestProcessedEvent.occurredAt.getTime();
         let nextEventStatus = data.finalEventStatus;
         let finalReason = data.reason ?? null;
         let updatedPayment = payment;
         let paymentChanged = false;
 
-        if (payment.status === data.paymentStatus) {
+        if (isChronologicallyStale) {
+            nextEventStatus = PaymentWebhookEventStatus.IGNORED;
+            finalReason =
+                data.reason ??
+                `Webhook occurredAt ${event.occurredAt!.toISOString()} is older than the latest processed webhook occurredAt ${latestProcessedEvent!.occurredAt!.toISOString()}.`;
+        } else if (payment.status === data.paymentStatus) {
             nextEventStatus = PaymentWebhookEventStatus.PROCESSED;
-            finalReason = data.reason ?? "Webhook status already matched the persisted payment status; no mutation was required.";
+            finalReason =
+                data.reason ??
+                "Webhook status already matched the persisted payment status; no mutation was required.";
         } else {
-            const validTransition = (VALID_FORWARD_TRANSITIONS[payment.status] ?? []).includes(data.paymentStatus);
+            const validTransition =
+                (VALID_FORWARD_TRANSITIONS[payment.status] ?? []).includes(
+                    data.paymentStatus
+                );
+
             if (validTransition) {
                 try {
                     const paymentUpdate = await tx.payment.updateMany({
@@ -475,7 +518,10 @@ export const finalizeWebhookTransition = async (
                             status: data.paymentStatus,
                             provider: data.provider,
                             providerPaymentId: data.providerPaymentId,
-                            metadata: data.metadata === undefined ? undefined : data.metadata ?? Prisma.DbNull,
+                            metadata:
+                                data.metadata === undefined
+                                    ? undefined
+                                    : data.metadata ?? Prisma.DbNull,
                         },
                     });
 
