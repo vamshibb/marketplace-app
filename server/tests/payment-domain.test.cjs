@@ -940,66 +940,66 @@ test('duplicate concurrent payment operations share the same provider call', asy
 });
 
 test('failed payment operation releases the in-flight lock and allows retry', async () => {
-    clearState();
+  clearState();
 
-    orders.set('retry-after-failure', {
-        id: 'retry-after-failure',
-        buyerId: 'buyer-retry',
-        transactionType: ListingType.SALE,
-        status: 'PENDING',
-    });
+  orders.set('retry-after-failure', {
+    id: 'retry-after-failure',
+    buyerId: 'buyer-retry',
+    transactionType: ListingType.SALE,
+    status: 'PENDING',
+  });
 
-    const payment = await createPaymentRecord({
-        orderId: 'retry-after-failure',
-        purpose: PaymentPurpose.SALE,
-        amount: '25.00',
-        currency: 'USD',
-        idempotencyKey: 'retry-after-failure',
-    });
+  const payment = await createPaymentRecord({
+    orderId: 'retry-after-failure',
+    purpose: PaymentPurpose.SALE,
+    amount: '25.00',
+    currency: 'USD',
+    idempotencyKey: 'retry-after-failure',
+  });
 
-    let authorizeCalls = 0;
+  let authorizeCalls = 0;
 
-    const provider = {
-        authorize: async (input) => {
-            authorizeCalls += 1;
+  const provider = {
+    authorize: async (input) => {
+      authorizeCalls += 1;
 
-            if (authorizeCalls === 1) {
-                throw new Error('temporary provider failure');
-            }
+      if (authorizeCalls === 1) {
+        throw new Error('temporary provider failure');
+      }
 
-            return {
-                provider: 'mock-provider',
-                providerPaymentId: `auth-${input.orderId}`,
-                status: PaymentStatus.AUTHORIZED,
-            };
-        },
+      return {
+        provider: 'mock-provider',
+        providerPaymentId: `auth-${input.orderId}`,
+        status: PaymentStatus.AUTHORIZED,
+      };
+    },
 
-        capture: async () => {
-            throw new Error('not used');
-        },
+    capture: async () => {
+      throw new Error('not used');
+    },
 
-        cancel: async () => {
-            throw new Error('not used');
-        },
+    cancel: async () => {
+      throw new Error('not used');
+    },
 
-        refund: async () => {
-            throw new Error('not used');
-        },
+    refund: async () => {
+      throw new Error('not used');
+    },
 
-        getStatus: async () => {
-            throw new Error('not used');
-        },
-    };
+    getStatus: async () => {
+      throw new Error('not used');
+    },
+  };
 
-    await assert.rejects(
-        authorizePayment(payment.id, provider),
-        /temporary provider failure/
-    );
+  await assert.rejects(
+    authorizePayment(payment.id, provider),
+    /temporary provider failure/
+  );
 
-    const retried = await authorizePayment(payment.id, provider);
+  const retried = await authorizePayment(payment.id, provider);
 
-    assert.equal(authorizeCalls, 2);
-    assert.equal(retried.status, PaymentStatus.AUTHORIZED);
+  assert.equal(authorizeCalls, 2);
+  assert.equal(retried.status, PaymentStatus.AUTHORIZED);
 });
 
 test('provider-confirmed operations only transition to allowed states', async () => {
@@ -1518,7 +1518,7 @@ test('captureRentalPaymentForStart does not capture RENT when required deposit i
       error &&
       error.statusCode === 409 &&
       error.message ===
-        'Rental security deposit must be authorized before starting the rental.'
+      'Rental security deposit must be authorized before starting the rental.'
   );
 
   assert.equal(captureCalls, 0);
