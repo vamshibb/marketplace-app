@@ -93,11 +93,32 @@ export const resolveRentalDispute = async (
         );
     }
 
-    if (dispute.status !== RentalDisputeStatus.OPEN) {
+    if (
+        dispute.status !== RentalDisputeStatus.OPEN &&
+        dispute.status !== RentalDisputeStatus.RESOLVING
+    ) {
         throw new AppError(
-            "Only open rental disputes can be resolved.",
+            "Only open or resolving rental disputes can be resolved.",
             409
         );
+    }
+
+    let freshlyClaimed = false;
+
+    if (dispute.status === RentalDisputeStatus.RESOLVING) {
+        if (dispute.resolution === null) {
+            throw new AppError(
+                "Resolving rental dispute is missing its intended resolution.",
+                409
+            );
+        }
+
+        if (dispute.resolution !== resolution) {
+            throw new AppError(
+                "Requested resolution does not match the resolving rental dispute.",
+                409
+            );
+        }
     }
 
     const order =
@@ -119,16 +140,21 @@ export const resolveRentalDispute = async (
         );
     }
 
-    const claimed =
-        await rentalDisputeRepository.claimRentalDisputeForResolution(
-            dispute.id
-        );
+    if (dispute.status === RentalDisputeStatus.OPEN) {
+        const claimed =
+            await rentalDisputeRepository.claimRentalDisputeForResolution(
+                dispute.id,
+                resolution
+            );
 
-    if (!claimed) {
-        throw new AppError(
-            "Rental dispute state changed concurrently. Please refresh and try again.",
-            409
-        );
+        if (!claimed) {
+            throw new AppError(
+                "Rental dispute state changed concurrently. Please refresh and try again.",
+                409
+            );
+        }
+
+        freshlyClaimed = true;
     }
 
     try {
@@ -155,10 +181,12 @@ export const resolveRentalDispute = async (
             );
         }
     } catch (error) {
-        await rentalDisputeRepository
-            .reopenRentalDisputeAfterResolutionFailure(
-                dispute.id
-            );
+        if (freshlyClaimed) {
+            await rentalDisputeRepository
+                .reopenRentalDisputeAfterResolutionFailure(
+                    dispute.id
+                );
+        }
 
         throw error;
     }
