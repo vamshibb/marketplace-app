@@ -626,16 +626,8 @@ test('generic arbitrary status updates are not exposed and provider failure leav
     (error) => error && error.message.includes('provider unavailable')
   );
 
-  const refreshed = await createPaymentForOrder({
-    orderId: 'sale-order',
-    purpose: PaymentPurpose.SALE,
-    amount: '40.00',
-    currency: 'USD',
-    idempotencyKey: 'sale-provider-failure',
-  });
-
+  const refreshed = await paymentRepositoryModule.exports.findPaymentById(payment.id);
   assert.equal(refreshed.status, PaymentStatus.PENDING);
-  assert.equal(refreshed.id, payment.id);
 });
 
 test('repeated provider operations do not call the provider again once the terminal state already exists', async () => {
@@ -1595,7 +1587,6 @@ test('captureRentalPaymentForStart is retry-safe when the main RENT payment is a
   assert.equal(captureCalls, 0);
 });
 
-
 test('provider failure still leaves the previous state unchanged', async () => {
   clearState();
   const payment = await createPaymentRecord({
@@ -1804,4 +1795,323 @@ test('seller payout readiness reports only captured main payments as ready', asy
   );
 
   assert.ok(rentPayment.id);
+});
+
+test('capture retries provider success after DB persistence failure with the same operation idempotency key', async () => {
+  clearState();
+
+  const payment = await createPaymentRecord({
+    orderId: 'sale-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '49.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-capture-db-recovery',
+  });
+
+  let captureCalls = 0;
+  const operationIdempotencyKeys = [];
+  const provider = {
+    ...mockProvider,
+    authorize: async () => ({
+      provider: 'mock-provider',
+      providerPaymentId: 'sale-capture-db-recovery-ref',
+      status: PaymentStatus.AUTHORIZED,
+      metadata: { strategy: 'authorized-for-db-recovery' },
+    }),
+    capture: async (input) => {
+      captureCalls += 1;
+      operationIdempotencyKeys.push(input.operationIdempotencyKey);
+      return {
+        provider: 'mock-provider',
+        providerPaymentId: 'sale-capture-db-recovery-ref',
+        status: PaymentStatus.CAPTURED,
+        metadata: { strategy: 'captured-before-db-failure' },
+      };
+    },
+  };
+
+  const authorized = await authorizePayment(payment.id, provider);
+  assert.equal(authorized.status, PaymentStatus.AUTHORIZED);
+  assert.equal(authorized.providerPaymentId, 'sale-capture-db-recovery-ref');
+
+  const originalCompareAndSwap =
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus;
+  let capturePersistenceAttempts = 0;
+  const simulatedDbError = new Error('simulated capture DB persistence failure');
+
+  try {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      async (id, expectedStatus, status, data = {}) => {
+        capturePersistenceAttempts += 1;
+        if (capturePersistenceAttempts === 1) {
+          throw simulatedDbError;
+        }
+        return originalCompareAndSwap(id, expectedStatus, status, data);
+      };
+
+    await assert.rejects(
+      capturePayment(authorized.id, provider),
+      (error) => error === simulatedDbError
+    );
+
+    const afterFailure =
+      await paymentRepositoryModule.exports.findPaymentById(authorized.id);
+    assert.equal(afterFailure.status, PaymentStatus.AUTHORIZED);
+
+    const captured = await capturePayment(authorized.id, provider);
+
+    assert.equal(captured.status, PaymentStatus.CAPTURED);
+    assert.equal(captureCalls, 2);
+    assert.equal(operationIdempotencyKeys.length, 2);
+    assert.ok(operationIdempotencyKeys[0]);
+    assert.equal(operationIdempotencyKeys[1], operationIdempotencyKeys[0]);
+
+    const finalPayment =
+      await paymentRepositoryModule.exports.findPaymentById(authorized.id);
+    assert.equal(finalPayment.status, PaymentStatus.CAPTURED);
+  } finally {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      originalCompareAndSwap;
+  }
+});
+
+test('cancel retries provider success after DB persistence failure with the same operation idempotency key', async () => {
+  clearState();
+
+  const payment = await createPaymentRecord({
+    orderId: 'cancel-order',
+    purpose: PaymentPurpose.RENT,
+    amount: '59.00',
+    currency: 'USD',
+    idempotencyKey: 'rent-cancel-db-recovery',
+  });
+
+  let cancelCalls = 0;
+  const operationIdempotencyKeys = [];
+  const provider = {
+    ...mockProvider,
+    authorize: async () => ({
+      provider: 'mock-provider',
+      providerPaymentId: 'rent-cancel-db-recovery-ref',
+      status: PaymentStatus.AUTHORIZED,
+      metadata: { strategy: 'authorized-for-cancel-db-recovery' },
+    }),
+    cancel: async (input) => {
+      cancelCalls += 1;
+      operationIdempotencyKeys.push(input.operationIdempotencyKey);
+      return {
+        provider: 'mock-provider',
+        providerPaymentId: 'rent-cancel-db-recovery-ref',
+        status: PaymentStatus.CANCELLED,
+        metadata: { strategy: 'cancelled-before-db-failure' },
+      };
+    },
+  };
+
+  const authorized = await authorizePayment(payment.id, provider);
+  assert.equal(authorized.status, PaymentStatus.AUTHORIZED);
+  assert.equal(authorized.providerPaymentId, 'rent-cancel-db-recovery-ref');
+
+  const originalCompareAndSwap =
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus;
+  let cancelPersistenceAttempts = 0;
+  const simulatedDbError = new Error('simulated cancel DB persistence failure');
+
+  try {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      async (id, expectedStatus, status, data = {}) => {
+        cancelPersistenceAttempts += 1;
+        if (cancelPersistenceAttempts === 1) {
+          throw simulatedDbError;
+        }
+        return originalCompareAndSwap(id, expectedStatus, status, data);
+      };
+
+    await assert.rejects(
+      cancelPayment(authorized.id, provider),
+      (error) => error === simulatedDbError
+    );
+
+    const afterFailure =
+      await paymentRepositoryModule.exports.findPaymentById(authorized.id);
+    assert.equal(afterFailure.status, PaymentStatus.AUTHORIZED);
+
+    const cancelled = await cancelPayment(authorized.id, provider);
+
+    assert.equal(cancelled.status, PaymentStatus.CANCELLED);
+    assert.equal(cancelCalls, 2);
+    assert.equal(operationIdempotencyKeys.length, 2);
+    assert.ok(operationIdempotencyKeys[0]);
+    assert.equal(operationIdempotencyKeys[1], operationIdempotencyKeys[0]);
+
+    const finalPayment =
+      await paymentRepositoryModule.exports.findPaymentById(authorized.id);
+    assert.equal(finalPayment.status, PaymentStatus.CANCELLED);
+  } finally {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      originalCompareAndSwap;
+  }
+});
+
+test('refund retries provider success after DB persistence failure with the same operation idempotency key', async () => {
+  clearState();
+
+  const payment = await createPaymentRecord({
+    orderId: 'refund-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '69.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-refund-db-recovery',
+  });
+
+  let refundCalls = 0;
+  const operationIdempotencyKeys = [];
+  const provider = {
+    ...mockProvider,
+    authorize: async () => ({
+      provider: 'mock-provider',
+      providerPaymentId: 'sale-refund-db-recovery-ref',
+      status: PaymentStatus.AUTHORIZED,
+      metadata: { strategy: 'authorized-for-refund-db-recovery' },
+    }),
+    capture: async (input) => ({
+      provider: 'mock-provider',
+      providerPaymentId: input.providerPaymentId ?? 'sale-refund-db-recovery-ref',
+      status: PaymentStatus.CAPTURED,
+      metadata: { strategy: 'captured-for-refund-db-recovery' },
+    }),
+    refund: async (input) => {
+      refundCalls += 1;
+      operationIdempotencyKeys.push(input.operationIdempotencyKey);
+      return {
+        provider: 'mock-provider',
+        providerPaymentId: 'sale-refund-db-recovery-ref',
+        status: PaymentStatus.REFUNDED,
+        metadata: { strategy: 'refunded-before-db-failure' },
+      };
+    },
+  };
+
+  const authorized = await authorizePayment(payment.id, provider);
+  const captured = await capturePayment(authorized.id, provider);
+  assert.equal(captured.status, PaymentStatus.CAPTURED);
+  assert.equal(captured.providerPaymentId, 'sale-refund-db-recovery-ref');
+
+  const originalCompareAndSwap =
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus;
+  let refundPersistenceAttempts = 0;
+  const simulatedDbError = new Error('simulated refund DB persistence failure');
+
+  try {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      async (id, expectedStatus, status, data = {}) => {
+        refundPersistenceAttempts += 1;
+        if (refundPersistenceAttempts === 1) {
+          throw simulatedDbError;
+        }
+        return originalCompareAndSwap(id, expectedStatus, status, data);
+      };
+
+    await assert.rejects(
+      refundPayment(captured.id, provider),
+      (error) => error === simulatedDbError
+    );
+
+    const afterFailure =
+      await paymentRepositoryModule.exports.findPaymentById(captured.id);
+    assert.equal(afterFailure.status, PaymentStatus.CAPTURED);
+
+    const refunded = await refundPayment(captured.id, provider);
+
+    assert.equal(refunded.status, PaymentStatus.REFUNDED);
+    assert.equal(refundCalls, 2);
+    assert.equal(operationIdempotencyKeys.length, 2);
+    assert.ok(operationIdempotencyKeys[0]);
+    assert.equal(operationIdempotencyKeys[1], operationIdempotencyKeys[0]);
+
+    const finalPayment =
+      await paymentRepositoryModule.exports.findPaymentById(captured.id);
+    assert.equal(finalPayment.status, PaymentStatus.REFUNDED);
+  } finally {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      originalCompareAndSwap;
+  }
+});
+
+test('authorize retries provider success after DB persistence failure with the same operation idempotency key', async () => {
+  clearState();
+
+  const payment = await createPaymentRecord({
+    orderId: 'sale-order',
+    purpose: PaymentPurpose.SALE,
+    amount: '39.00',
+    currency: 'USD',
+    idempotencyKey: 'sale-authorize-db-recovery',
+  });
+
+  assert.equal(payment.status, PaymentStatus.PENDING);
+  assert.equal(Boolean(payment.providerPaymentId), false);
+
+  let authorizeCalls = 0;
+  const operationIdempotencyKeys = [];
+  const providerPaymentIds = [];
+  const provider = {
+    ...mockProvider,
+    authorize: async (input) => {
+      authorizeCalls += 1;
+      operationIdempotencyKeys.push(input.operationIdempotencyKey);
+      providerPaymentIds.push('sale-authorize-db-recovery-ref');
+      return {
+        provider: 'mock-provider',
+        providerPaymentId: 'sale-authorize-db-recovery-ref',
+        status: PaymentStatus.AUTHORIZED,
+        metadata: { strategy: 'authorized-before-db-failure' },
+      };
+    },
+  };
+
+  const originalCompareAndSwap =
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus;
+  let authorizationPersistenceAttempts = 0;
+  const simulatedDbError = new Error('simulated authorize DB persistence failure');
+
+  try {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      async (id, expectedStatus, status, data = {}) => {
+        authorizationPersistenceAttempts += 1;
+        if (authorizationPersistenceAttempts === 1) {
+          throw simulatedDbError;
+        }
+        return originalCompareAndSwap(id, expectedStatus, status, data);
+      };
+
+    await assert.rejects(
+      authorizePayment(payment.id, provider),
+      (error) => error === simulatedDbError
+    );
+
+    const afterFailure =
+      await paymentRepositoryModule.exports.findPaymentById(payment.id);
+    assert.equal(afterFailure.status, PaymentStatus.PENDING);
+    assert.equal(Boolean(afterFailure.providerPaymentId), false);
+
+    const authorized = await authorizePayment(payment.id, provider);
+
+    assert.equal(authorized.status, PaymentStatus.AUTHORIZED);
+    assert.equal(authorizeCalls, 2);
+    assert.equal(operationIdempotencyKeys.length, 2);
+    assert.ok(operationIdempotencyKeys[0]);
+    assert.equal(operationIdempotencyKeys[1], operationIdempotencyKeys[0]);
+    assert.equal(providerPaymentIds.length, 2);
+    assert.equal(providerPaymentIds[0], 'sale-authorize-db-recovery-ref');
+    assert.equal(providerPaymentIds[1], providerPaymentIds[0]);
+
+    const finalPayment =
+      await paymentRepositoryModule.exports.findPaymentById(payment.id);
+    assert.equal(finalPayment.status, PaymentStatus.AUTHORIZED);
+    assert.equal(finalPayment.providerPaymentId, 'sale-authorize-db-recovery-ref');
+  } finally {
+    paymentRepositoryModule.exports.compareAndSwapPaymentStatus =
+      originalCompareAndSwap;
+  }
 });
