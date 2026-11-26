@@ -2536,24 +2536,28 @@ test('stale concurrent webhook writers cannot both persist or duplicate order_ch
             },
         }, async () => {
             const [first, second] = await Promise.all([
-                paymentService.processWebhookEvent('mock-provider', Buffer.from('first'), {}, { ...provider, verifyWebhook: async () => ({
-                    provider: 'mock-provider',
-                    providerEventId: 'evt-1',
-                    eventType: 'payment_intent.succeeded',
-                    providerPaymentId: 'prov-race-two-webhooks',
-                    paymentStatus: PaymentStatus.CAPTURED,
-                    occurredAt: new Date(),
-                    safeMetadata: null,
-                }) }),
-                paymentService.processWebhookEvent('mock-provider', Buffer.from('second'), {}, { ...provider, verifyWebhook: async () => ({
-                    provider: 'mock-provider',
-                    providerEventId: 'evt-2',
-                    eventType: 'payment_intent.succeeded',
-                    providerPaymentId: 'prov-race-two-webhooks',
-                    paymentStatus: PaymentStatus.CAPTURED,
-                    occurredAt: new Date(),
-                    safeMetadata: null,
-                }) }),
+                paymentService.processWebhookEvent('mock-provider', Buffer.from('first'), {}, {
+                    ...provider, verifyWebhook: async () => ({
+                        provider: 'mock-provider',
+                        providerEventId: 'evt-1',
+                        eventType: 'payment_intent.succeeded',
+                        providerPaymentId: 'prov-race-two-webhooks',
+                        paymentStatus: PaymentStatus.CAPTURED,
+                        occurredAt: new Date(),
+                        safeMetadata: null,
+                    })
+                }),
+                paymentService.processWebhookEvent('mock-provider', Buffer.from('second'), {}, {
+                    ...provider, verifyWebhook: async () => ({
+                        provider: 'mock-provider',
+                        providerEventId: 'evt-2',
+                        eventType: 'payment_intent.succeeded',
+                        providerPaymentId: 'prov-race-two-webhooks',
+                        paymentStatus: PaymentStatus.CAPTURED,
+                        occurredAt: new Date(),
+                        safeMetadata: null,
+                    })
+                }),
             ]);
 
             assert.equal(persistedStatus, PaymentStatus.CAPTURED);
