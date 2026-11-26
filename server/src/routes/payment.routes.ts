@@ -18,6 +18,12 @@ router.post(
 );
 
 router.post(
+    "/orders/:orderId/payments/sync",
+    authMiddleware,
+    paymentController.syncOrderPaymentStatus
+);
+
+router.post(
     "/payments/webhooks/:provider",
     paymentController.handleWebhook
 );

@@ -792,6 +792,34 @@ const resolveMainPaymentPurposeForOrder = (transactionType: ListingType): Paymen
     throw new AppError(`Unsupported order transaction type: ${transactionType}.`, 409);
 };
 
+export const syncOrderPaymentStatus = async (
+    orderId: string,
+    buyerId: string,
+    paymentProvider: PaymentProvider = getConfiguredPaymentProvider()
+) => {
+    const order = await orderRepository.findOrderById(orderId);
+
+    if (!order) {
+        throw new AppError("Order not found", 404);
+    }
+
+    if (order.buyerId !== buyerId) {
+        throw new AppError(
+            "You are not authorized to perform this action.",
+            403
+        );
+    }
+
+    const paymentPurpose = resolveMainPaymentPurposeForOrder(order.transactionType);
+    const payment = await paymentRepository.findPaymentByOrderAndPurpose(orderId, paymentPurpose);
+
+    if (!payment) {
+        throw new AppError(`Order ${orderId} does not have a ${paymentPurpose} payment record.`, 404);
+    }
+
+    return syncPaymentStatus(payment.id, paymentProvider);
+};
+
 export const getSellerPayoutReadiness = async (orderId: string) => {
     const order = await orderRepository.findOrderById(orderId);
     if (!order) {

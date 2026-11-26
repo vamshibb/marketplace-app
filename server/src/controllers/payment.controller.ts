@@ -109,3 +109,30 @@ export const handleWebhook = async (
         next(error);
     }
 };
+
+export const syncOrderPaymentStatus = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const payment =
+            await paymentService.syncOrderPaymentStatus(
+                req.params.orderId,
+                req.user!.id,
+                getConfiguredPaymentProvider()
+            );
+
+        return res.status(200).json(
+            successResponse(
+                {
+                    payment:
+                        toPaymentResponseDto(payment),
+                },
+                "Payment status synchronized"
+            )
+        );
+    } catch (error) {
+        next(error);
+    }
+};
