@@ -798,12 +798,11 @@ test('Stripe verifyWebhook rejects unsupported event types', async () => {
       constructEvent() {
         return {
           id: 'evt_unsupported',
-          type: 'charge.refunded',
+          type: 'customer.created',
           created: 1700000005,
           data: {
             object: {
-              id: 'ch_unsupported',
-              status: 'succeeded',
+              id: 'cus_unsupported',
             },
           },
         };
@@ -816,7 +815,138 @@ test('Stripe verifyWebhook rejects unsupported event types', async () => {
   try {
     await assert.rejects(
       () => provider.verifyWebhook(Buffer.from('ok'), { 'stripe-signature': 'sig_unsupported' }),
-      (error) => error.statusCode === 400 && /Unsupported Stripe webhook event type: charge\.refunded/i.test(error.message)
+      (error) => error.statusCode === 400 && /Unsupported Stripe webhook event type: customer\.created/i.test(error.message)
+    );
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.STRIPE_WEBHOOK_SECRET;
+    } else {
+      process.env.STRIPE_WEBHOOK_SECRET = previousSecret;
+    }
+  }
+});
+
+test('Stripe verifyWebhook maps charge.refunded full refund to REFUNDED', async () => {
+  const previousSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
+
+  const fakeStripe = {
+    webhooks: {
+      constructEvent() {
+        return {
+          id: 'evt_charge_refunded_full',
+          type: 'charge.refunded',
+          created: 1700000006,
+          data: {
+            object: {
+              id: 'ch_refunded_full',
+              payment_intent: 'pi_refunded_full',
+              refunded: true,
+              amount_refunded: 1234,
+              livemode: false,
+            },
+          },
+        };
+      },
+    },
+  };
+
+  const provider = createStripePaymentProvider(fakeStripe);
+
+  try {
+    const result = await provider.verifyWebhook(Buffer.from('ok'), {
+      'stripe-signature': 'sig_charge_refunded_full',
+    });
+
+    assert.equal(result.provider, 'stripe');
+    assert.equal(result.providerEventId, 'evt_charge_refunded_full');
+    assert.equal(result.eventType, 'charge.refunded');
+    assert.equal(result.providerPaymentId, 'pi_refunded_full');
+    assert.equal(result.paymentStatus, PaymentStatus.REFUNDED);
+    assert.equal(result.occurredAt.toISOString(), new Date(1700000006 * 1000).toISOString());
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.STRIPE_WEBHOOK_SECRET;
+    } else {
+      process.env.STRIPE_WEBHOOK_SECRET = previousSecret;
+    }
+  }
+});
+
+test('Stripe verifyWebhook maps charge.refunded partial refund to PARTIALLY_REFUNDED', async () => {
+  const previousSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
+
+  const fakeStripe = {
+    webhooks: {
+      constructEvent() {
+        return {
+          id: 'evt_charge_refunded_partial',
+          type: 'charge.refunded',
+          created: 1700000007,
+          data: {
+            object: {
+              id: 'ch_refunded_partial',
+              payment_intent: { id: 'pi_refunded_partial' },
+              refunded: false,
+              amount_refunded: 500,
+              livemode: true,
+            },
+          },
+        };
+      },
+    },
+  };
+
+  const provider = createStripePaymentProvider(fakeStripe);
+
+  try {
+    const result = await provider.verifyWebhook(Buffer.from('ok'), {
+      'stripe-signature': 'sig_charge_refunded_partial',
+    });
+
+    assert.equal(result.providerPaymentId, 'pi_refunded_partial');
+    assert.equal(result.paymentStatus, PaymentStatus.PARTIALLY_REFUNDED);
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.STRIPE_WEBHOOK_SECRET;
+    } else {
+      process.env.STRIPE_WEBHOOK_SECRET = previousSecret;
+    }
+  }
+});
+
+test('Stripe verifyWebhook rejects charge.refunded missing payment_intent', async () => {
+  const previousSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test';
+
+  const fakeStripe = {
+    webhooks: {
+      constructEvent() {
+        return {
+          id: 'evt_charge_refunded_missing',
+          type: 'charge.refunded',
+          created: 1700000008,
+          data: {
+            object: {
+              id: 'ch_refunded_missing',
+              payment_intent: null,
+              refunded: true,
+              amount_refunded: 1234,
+              livemode: false,
+            },
+          },
+        };
+      },
+    },
+  };
+
+  const provider = createStripePaymentProvider(fakeStripe);
+
+  try {
+    await assert.rejects(
+      () => provider.verifyWebhook(Buffer.from('ok'), { 'stripe-signature': 'sig_charge_refunded_missing' }),
+      (error) => error.statusCode === 409 && /missing a payment_intent/i.test(error.message)
     );
   } finally {
     if (previousSecret === undefined) {

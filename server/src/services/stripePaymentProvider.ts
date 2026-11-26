@@ -433,12 +433,67 @@ export const createStripePaymentProvider = (
             eventType !== "payment_intent.processing" &&
             eventType !== "payment_intent.payment_failed" &&
             eventType !== "payment_intent.canceled" &&
-            eventType !== "payment_intent.succeeded"
+            eventType !== "payment_intent.succeeded" &&
+            eventType !== "charge.refunded"
         ) {
             throw new AppError(
                 `Unsupported Stripe webhook event type: ${eventType}.`,
                 400
             );
+        }
+
+        if (eventType === "charge.refunded") {
+            const charge =
+                event.data.object as Stripe.Charge;
+
+            const paymentIntent =
+                charge.payment_intent;
+            const providerPaymentId =
+                typeof paymentIntent === "string"
+                    ? paymentIntent
+                    : paymentIntent?.id;
+
+            if (
+                !providerPaymentId ||
+                typeof providerPaymentId !== "string"
+            ) {
+                throw new AppError(
+                    "Stripe charge.refunded event is missing a payment_intent.",
+                    409
+                );
+            }
+
+            let paymentStatus: PaymentStatus;
+            if (charge.refunded === true) {
+                paymentStatus = PaymentStatus.REFUNDED;
+            } else if (charge.amount_refunded > 0) {
+                paymentStatus =
+                    PaymentStatus.PARTIALLY_REFUNDED;
+            } else {
+                throw new AppError(
+                    "Stripe charge.refunded event has inconsistent refund state.",
+                    409
+                );
+            }
+
+            return {
+                provider: STRIPE_PROVIDER_NAME,
+                providerEventId: event.id,
+                eventType,
+                providerPaymentId,
+                paymentStatus,
+                occurredAt: new Date(
+                    event.created * 1000
+                ),
+                safeMetadata: {
+                    stripeChargeId: charge.id,
+                    stripeAmountRefunded:
+                        charge.amount_refunded,
+                    stripeChargeRefunded:
+                        charge.refunded,
+                    stripeLivemode: charge.livemode,
+                },
+            };
         }
 
         const paymentIntent =
