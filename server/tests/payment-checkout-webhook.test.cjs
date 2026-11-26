@@ -2042,6 +2042,142 @@ test('duplicate and already-final webhook events do not mutate the local payment
     });
 });
 
+test('CAPTURED payment processes partial refund then refund webhooks idempotently', async () => {
+    const userRealtimePublisher = require('../src/utils/userRealtimePublisher.ts');
+    const originalPublishOrderChanged = userRealtimePublisher.publishOrderChanged;
+    const publishCalls = [];
+    userRealtimePublisher.publishOrderChanged = (...args) => {
+        publishCalls.push(args);
+    };
+
+    try {
+        const payment = {
+            id: 'pay-p6e-refunds',
+            orderId: 'order-p6e-refunds',
+            provider: 'trusted-provider',
+            providerPaymentId: 'pay_p6e_refunds',
+            purpose: PaymentPurpose.SALE,
+            status: PaymentStatus.CAPTURED,
+            amount: new Prisma.Decimal('100.00'),
+            currency: 'USD',
+            metadata: null,
+            order: { buyerId: 'buyer-p6e', sellerId: 'seller-p6e' },
+        };
+
+        const events = new Map();
+        let paymentMutationCount = 0;
+
+        await withPaymentStubs({
+            claimWebhookEvent: async (provider, providerEventId, data) => {
+                const existing = events.get(providerEventId);
+                if (existing) {
+                    return {
+                        event: existing,
+                        claimed: false,
+                        created: false,
+                        state: 'duplicate',
+                    };
+                }
+
+                const event = {
+                    id: `webhook-${providerEventId}`,
+                    provider,
+                    providerEventId,
+                    eventType: data.eventType,
+                    providerPaymentId: data.providerPaymentId,
+                    paymentId: payment.id,
+                    status: 'PROCESSING',
+                    processedAt: null,
+                    reason: null,
+                };
+                events.set(providerEventId, event);
+                return { event, claimed: true, created: true, state: 'claimed' };
+            },
+            findPaymentByProviderReference: async () => payment,
+            findPaymentById: async () => payment,
+            finalizeWebhookTransition: async (eventId, paymentId, data) => {
+                assert.equal(paymentId, payment.id);
+
+                paymentMutationCount += 1;
+                payment.status = data.paymentStatus;
+
+                const providerEventId = eventId === 'webhook-evt-p6e-partial'
+                    ? 'evt-p6e-partial'
+                    : 'evt-p6e-refunded';
+                const event = events.get(providerEventId);
+                event.status = data.finalEventStatus;
+                event.processedAt = new Date();
+
+                return {
+                    payment,
+                    event,
+                    transitionApplied: true,
+                };
+            },
+        }, async () => {
+            const makeProvider = (providerEventId, paymentStatus) => ({
+                name: 'trusted-provider',
+                async authorize() { throw new Error('not used'); },
+                async capture() { throw new Error('not used'); },
+                async cancel() { throw new Error('not used'); },
+                async refund() { throw new Error('not used'); },
+                async getStatus() { throw new Error('not used'); },
+                async verifyWebhook() {
+                    return {
+                        provider: 'trusted-provider',
+                        providerEventId,
+                        eventType: 'charge.refunded',
+                        providerPaymentId: 'pay_p6e_refunds',
+                        paymentStatus,
+                        occurredAt: new Date(),
+                        safeMetadata: null,
+                    };
+                },
+            });
+
+            const partial = await paymentService.processWebhookEvent(
+                'trusted-provider',
+                Buffer.from('{}'),
+                {},
+                makeProvider('evt-p6e-partial', PaymentStatus.PARTIALLY_REFUNDED)
+            );
+
+            assert.equal(partial.acknowledged, true);
+            assert.equal(partial.transitionApplied, true);
+            assert.equal(payment.status, PaymentStatus.PARTIALLY_REFUNDED);
+
+            const refunded = await paymentService.processWebhookEvent(
+                'trusted-provider',
+                Buffer.from('{}'),
+                {},
+                makeProvider('evt-p6e-refunded', PaymentStatus.REFUNDED)
+            );
+
+            assert.equal(refunded.acknowledged, true);
+            assert.equal(refunded.transitionApplied, true);
+            assert.equal(payment.status, PaymentStatus.REFUNDED);
+
+            assert.equal(paymentMutationCount, 2);
+            assert.equal(publishCalls.length, 2);
+
+            const duplicate = await paymentService.processWebhookEvent(
+                'trusted-provider',
+                Buffer.from('{}'),
+                {},
+                makeProvider('evt-p6e-refunded', PaymentStatus.REFUNDED)
+            );
+
+            assert.equal(duplicate.acknowledged, true);
+            assert.equal(duplicate.idempotent, true);
+            assert.equal(payment.status, PaymentStatus.REFUNDED);
+            assert.equal(paymentMutationCount, 2);
+            assert.equal(publishCalls.length, 2);
+        });
+    } finally {
+        userRealtimePublisher.publishOrderChanged = originalPublishOrderChanged;
+    }
+});
+
 test('retryable webhook failure can be retried without regressing payment state', async () => {
     await withPaymentStubs({
         claimWebhookEvent: async () => ({
