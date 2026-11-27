@@ -23,6 +23,7 @@ import notificationRoutes
   from "./routes/notification.routes";
 import orderRoutes from "./routes/order.routes";
 import paymentRoutes from "./routes/payment.routes";
+import rentalDisputeRoutes from "./routes/rentalDispute.routes";
 
 import userReviewRoutes from "./routes/userReview.routes";
 import userRoutes from "./routes/user.routes";
@@ -66,6 +67,7 @@ app.use("/api", notificationRoutes);
 app.use("/api", realtimeRoutes);
 app.use("/api", orderRoutes);
 app.use("/api", paymentRoutes);
+app.use("/api", rentalDisputeRoutes);
 app.use(errorMiddleware);
 
 app.listen(env.PORT, () => {
